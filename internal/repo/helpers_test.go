@@ -16,8 +16,11 @@ package repo
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 // stubSignature is what testdata/signer/ok.sh prints.
@@ -25,6 +28,9 @@ const stubSignature = "-----BEGIN PGP SIGNATURE-----\n\nc3R1Yi1zaWduYXR1cmU=\n=A
 
 // stubKeyID is the made-up key id on the status line of testdata/signer/fail.sh.
 const stubKeyID = "0123456789ABCDEF0123456789ABCDEF01234567"
+
+// fixedNow is the clock of every commit made by the tests; git stores whole seconds.
+var fixedNow = time.Date(2026, 9, 28, 3, 30, 15, 0, time.FixedZone("JST", 9*60*60))
 
 // testConfig is a configuration whose author and committer differ, so a test notices when one is used for
 // the other.
@@ -67,4 +73,38 @@ func writeFiles(t *testing.T, dir string, files map[string]string) {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
+}
+
+// gitCLI runs the git command line in dir and returns its standard output. It never reads the owner's
+// configuration: every GIT_* variable is dropped, HOME and XDG_CONFIG_HOME point into a temporary
+// directory, and the global and system files are disabled. Only commands that start no signing or
+// verification program may be run through it.
+func gitCLI(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	home := t.TempDir()
+	env := []string{
+		"HOME=" + home,
+		"XDG_CONFIG_HOME=" + filepath.Join(home, ".config"),
+		"GIT_CONFIG_GLOBAL=" + os.DevNull,
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_TERMINAL_PROMPT=0",
+		"LC_ALL=C",
+	}
+	for _, kv := range os.Environ() {
+		key, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(key, "GIT_") || key == "HOME" || key == "XDG_CONFIG_HOME" || key == "LC_ALL" {
+			continue
+		}
+		env = append(env, kv)
+	}
+
+	cmd := exec.CommandContext(t.Context(), "git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = env
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git %s: %v\nstderr:\n%s", strings.Join(args, " "), err, stderr.String())
+	}
+	return string(out)
 }
