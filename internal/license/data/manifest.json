@@ -1,0 +1,22 @@
+{
+  "licenseListVersion": "3.29.0",
+  "tag": "v3.29.0",
+  "licenses": {
+    "Apache-2.0": {
+      "placeholder": "[yyyy] [name of copyright owner]",
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+    },
+    "BSD-3-Clause": {
+      "placeholder": "Copyright (c) <year> <owner>.",
+      "sha256": "5a93d5831e1297ab10fe643e1a631e83be392896da14ee2951285a79012df69d"
+    },
+    "CC-BY-SA-4.0": {
+      "placeholder": "",
+      "sha256": "cde7883b9050a1104f4ac19a1572aafd6e5d7323b68351aaf51fbf4beba54966"
+    },
+    "MIT": {
+      "placeholder": "Copyright (c) <year> <copyright holders>",
+      "sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5"
+    }
+  }
+}
