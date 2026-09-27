@@ -283,9 +283,9 @@ func TestApply(t *testing.T) {
 			origin: "git@github.com:org/project.git", token: testToken, apiHost: "api.github.com:443",
 			want: Failed, wantTokenCalls: 1, wantErr: true,
 		},
-		"error: cancelled context stops the call": {
+		"error: cancelled context stops the call before the token lookup": {
 			origin: "git@github.com:org/project.git", token: testToken, get: ok, patch: ok, cancel: true,
-			want: Failed, wantTokenCalls: 1, wantErr: true, wantErrIs: context.Canceled,
+			want: Failed, wantTokenCalls: 0, wantErr: true, wantErrIs: context.Canceled,
 		},
 		"error: API.Timeout bounds a GET that never answers": {
 			origin: "git@github.com:org/project.git", token: testToken, get: reply{block: true}, timeout: 250 * time.Millisecond,
@@ -377,6 +377,85 @@ func TestApply(t *testing.T) {
 				if diff := gocmp.Diff(wantSettings, body); diff != "" {
 					t.Errorf("PATCH %s body (-want +got):\n%s", r.path, diff)
 				}
+			}
+		})
+	}
+}
+
+// TestApplyTokenLookupBounded checks that a token lookup that does not return cannot hold Apply past the end
+// of its context: without a token in the environment, go-gh runs "gh auth token", which can wait for a
+// keychain prompt.
+func TestApplyTokenLookupBounded(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		timeout time.Duration // the deadline of the context; zero cancels it once the lookup has started
+		wantIs  error
+	}{
+		"error: the deadline ends the wait for the token": {
+			timeout: 100 * time.Millisecond,
+			wantIs:  context.DeadlineExceeded,
+		},
+		"error: cancelling the context ends the wait for the token": {
+			wantIs: context.Canceled,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newServer(t, reply{status: http.StatusOK}, reply{status: http.StatusOK})
+			started, release := make(chan struct{}), make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			client := New(Options{
+				Token: func(string) string {
+					close(started)
+					<-release
+					return ""
+				},
+				API: api.ClientOptions{Host: "github.com", Transport: srv.transport(t)},
+			})
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tt.timeout > 0 {
+				ctx, cancel = context.WithTimeout(t.Context(), tt.timeout)
+				defer cancel()
+			} else {
+				go func() {
+					<-started
+					cancel()
+				}()
+			}
+
+			type result struct {
+				outcome Outcome
+				err     error
+			}
+			done := make(chan result, 1)
+			go func() {
+				outcome, err := client.Apply(ctx, "git@github.com:org/project.git", "org", "project")
+				done <- result{outcome, err}
+			}()
+			var got result
+			select {
+			case got = <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("Apply() has not returned 5s after its context ended: the token lookup is not bounded")
+			}
+
+			if got.outcome != Failed {
+				t.Errorf("Apply() = %d, want Failed", got.outcome)
+			}
+			if !errors.Is(got.err, tt.wantIs) {
+				t.Fatalf("Apply() error = %v, want errors.Is(%v)", got.err, tt.wantIs)
+			}
+			if msg := got.err.Error(); !strings.Contains(msg, "org/project") {
+				t.Errorf("error %q does not name the repository org/project", msg)
+			}
+			if reqs := srv.requests(); len(reqs) != 0 {
+				t.Errorf("Apply() sent %d requests without a token, want none", len(reqs))
 			}
 		})
 	}

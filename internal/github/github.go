@@ -131,7 +131,8 @@ func New(opts Options) *Client { //nolint:gocritic // hugeParam: New runs once p
 //
 // No request is sent when originURL is not a github.com URL, names another repository, or no token is found.
 // A 404 from the GET is SkippedNotFound. Any other failure of the GET or the PATCH is returned as an error
-// together with Failed.
+// together with Failed. ctx also bounds the token lookup: when it ends first, Apply returns Failed and an
+// error that wraps the context's error, and leaves the lookup to finish on its own.
 func (c *Client) Apply(ctx context.Context, originURL, org, project string) (Outcome, error) {
 	repo, err := repository.ParseWithHost(originURL, "")
 	if err != nil || auth.NormalizeHostname(repo.Host) != githubHost {
@@ -142,7 +143,10 @@ func (c *Client) Apply(ctx context.Context, originURL, org, project string) (Out
 		return SkippedOriginMismatch, nil
 	}
 
-	token := c.token(c.api.Host)
+	token, ok := c.lookupToken(ctx)
+	if !ok {
+		return Failed, fmt.Errorf("github: look up the token for %s/%s: %w", repo.Owner, name, ctx.Err())
+	}
 	if token == "" {
 		return SkippedNoToken, nil
 	}
@@ -169,6 +173,23 @@ func (c *Client) Apply(ctx context.Context, originURL, org, project string) (Out
 		return Failed, fmt.Errorf("github: update settings of %s/%s: %w", repo.Owner, name, err)
 	}
 	return Applied, nil
+}
+
+// lookupToken runs the token function for the API host until it returns or ctx ends; ok is false when ctx
+// ended first. The default function can run "gh auth token", which takes no context and can wait for a
+// keychain prompt.
+func (c *Client) lookupToken(ctx context.Context) (token string, ok bool) {
+	if ctx.Err() != nil {
+		return "", false
+	}
+	result := make(chan string, 1) // buffered, so that a lookup that outlives ctx can still finish
+	go func() { result <- c.token(c.api.Host) }()
+	select {
+	case token := <-result:
+		return token, true
+	case <-ctx.Done():
+		return "", false
+	}
 }
 
 // send issues one request. A non-2xx status is an *api.HTTPError. The body is not read: the status decides the result.
