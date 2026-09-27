@@ -221,6 +221,7 @@ func withFinalNewline(b []byte) []byte {
 type manifest struct {
 	LicenseListVersion string           `json:"licenseListVersion"`
 	Tag                string           `json:"tag"`
+	Commit             string           `json:"commit"` // the commit Tag names; the data was fetched by it
 	Licenses           map[string]entry `json:"licenses"`
 }
 
@@ -239,6 +240,8 @@ func parseManifest(b []byte) (manifest, error) {
 		return manifest{}, fmt.Errorf("manifest: licenseListVersion is empty")
 	case m.Tag == "":
 		return manifest{}, fmt.Errorf("manifest: tag is empty")
+	case len(m.Commit) != 40:
+		return manifest{}, fmt.Errorf("manifest: commit %q is not 40 hex digits", m.Commit)
 	case len(m.Licenses) == 0:
 		return manifest{}, fmt.Errorf("manifest: no licenses")
 	}

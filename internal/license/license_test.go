@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-json-experiment/json"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/licensecheck"
 )
@@ -645,7 +647,7 @@ func TestAttribution(t *testing.T) {
 		"success: names the license":      {want: "CC-BY-3.0"},
 		"success: links the license":      {want: "https://creativecommons.org/licenses/by/3.0/"},
 		"success: names the holder":       {want: "Linux Foundation and its Contributors"},
-		"success: names the source":       {want: "https://raw.githubusercontent.com/spdx/license-list-data/v3.29.0/json/"},
+		"success: names the source":       {want: "https://raw.githubusercontent.com/spdx/license-list-data/31ba1a50e5397e00a304dbadc76531740e89ee48/json/"},
 		"success: states the change":      {want: "replaces the line that holds the copyright placeholder"},
 		"success: names the manifest tag": {want: m.Tag},
 		"success: names the manifest version": {
@@ -669,6 +671,43 @@ func TestAttribution(t *testing.T) {
 	}
 }
 
+// TestDataSource checks that the data was fetched by the commit that the tag v3.29.0 names, not by the tag,
+// which upstream can move: the manifest keeps the tag and records the commit, and the README names the
+// source by the commit. The commit is refs/tags/v3.29.0^{} of https://github.com/spdx/license-list-data.
+func TestDataSource(t *testing.T) {
+	const commit = "31ba1a50e5397e00a304dbadc76531740e89ee48"
+	var raw map[string]any
+	if err := json.Unmarshal(readData(t, "manifest.json"), &raw); err != nil {
+		t.Fatalf("decode data/manifest.json: %v", err)
+	}
+	readme := string(readData(t, "README.md"))
+
+	tests := map[string]struct {
+		ok   bool
+		what string
+	}{
+		"success: the manifest records the commit": {
+			ok:   raw["commit"] == commit,
+			what: fmt.Sprintf("manifest commit = %v, want %s", raw["commit"], commit),
+		},
+		"success: the manifest keeps the tag": {
+			ok:   raw["tag"] == "v3.29.0",
+			what: fmt.Sprintf("manifest tag = %v, want v3.29.0", raw["tag"]),
+		},
+		"success: the README names the source by the commit": {
+			ok:   strings.Contains(readme, "https://raw.githubusercontent.com/spdx/license-list-data/"+commit+"/json/"),
+			what: "data/README.md does not name the source URL with the commit " + commit,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if !tc.ok {
+				t.Error(tc.what)
+			}
+		})
+	}
+}
+
 func TestParseManifest(t *testing.T) {
 	const sum = "0000000000000000000000000000000000000000000000000000000000000000"
 	tests := map[string]struct {
@@ -677,10 +716,11 @@ func TestParseManifest(t *testing.T) {
 		wantErr bool
 	}{
 		"success: empty placeholder is kept": {
-			input: `{"licenseListVersion":"3.29.0","tag":"v3.29.0","licenses":{"CC-BY-SA-4.0":{"placeholder":"","sha256":"` + sum + `"}}}`,
+			input: `{"licenseListVersion":"3.29.0","tag":"v3.29.0","commit":"31ba1a50e5397e00a304dbadc76531740e89ee48","licenses":{"CC-BY-SA-4.0":{"placeholder":"","sha256":"` + sum + `"}}}`,
 			want: manifest{
 				LicenseListVersion: "3.29.0",
 				Tag:                "v3.29.0",
+				Commit:             "31ba1a50e5397e00a304dbadc76531740e89ee48",
 				Licenses:           map[string]entry{"CC-BY-SA-4.0": {SHA256: sum}},
 			},
 		},
@@ -689,23 +729,31 @@ func TestParseManifest(t *testing.T) {
 			wantErr: true,
 		},
 		"error: unknown member": {
-			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","extra":1,"licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
+			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","commit":"31ba1a50e5397e00a304dbadc76531740e89ee48","extra":1,"licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
 			wantErr: true,
 		},
 		"error: empty version": {
-			input:   `{"licenseListVersion":"","tag":"v3.29.0","licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
+			input:   `{"licenseListVersion":"","tag":"v3.29.0","commit":"31ba1a50e5397e00a304dbadc76531740e89ee48","licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
 			wantErr: true,
 		},
 		"error: empty tag": {
-			input:   `{"licenseListVersion":"3.29.0","tag":"","licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
+			input:   `{"licenseListVersion":"3.29.0","tag":"","commit":"31ba1a50e5397e00a304dbadc76531740e89ee48","licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
+			wantErr: true,
+		},
+		"error: no commit": {
+			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
+			wantErr: true,
+		},
+		"error: short commit": {
+			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","commit":"31ba1a5","licenses":{"MIT":{"placeholder":"","sha256":"` + sum + `"}}}`,
 			wantErr: true,
 		},
 		"error: no licenses": {
-			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","licenses":{}}`,
+			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","commit":"31ba1a50e5397e00a304dbadc76531740e89ee48","licenses":{}}`,
 			wantErr: true,
 		},
 		"error: short sha256": {
-			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","licenses":{"MIT":{"placeholder":"","sha256":"abc"}}}`,
+			input:   `{"licenseListVersion":"3.29.0","tag":"v3.29.0","commit":"31ba1a50e5397e00a304dbadc76531740e89ee48","licenses":{"MIT":{"placeholder":"","sha256":"abc"}}}`,
 			wantErr: true,
 		},
 	}

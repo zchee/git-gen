@@ -61,17 +61,18 @@ func detailsBody(t *testing.T, id, text, tmpl string) fixture {
 	return fixture{status: http.StatusOK, body: string(b)}
 }
 
-// baseRoutes serves only the paths under the fixed tag, so a request built with the wrong layout fails.
+// baseRoutes serves only the paths under the fixed commit, so a request built by the tag or with the wrong
+// layout fails.
 func baseRoutes(t *testing.T) map[string]fixture {
 	t.Helper()
 	return map[string]fixture{
-		"/v3.29.0/json/licenses.json": {
+		"/" + commit + "/json/licenses.json": {
 			status: http.StatusOK,
 			body:   `{"licenseListVersion":"3.29.0","licenses":[{"licenseId":"MIT"}],"releaseDate":"2026-09-16T00:00:00Z"}`,
 		},
-		"/v3.29.0/json/details/MIT.json":          detailsBody(t, "MIT", mitText, mitTmpl),
-		"/v3.29.0/json/details/BSD-3-Clause.json": detailsBody(t, "BSD-3-Clause", bsdText, bsdTmpl),
-		"/v3.29.0/json/details/CC-BY-SA-4.0.json": detailsBody(t, "CC-BY-SA-4.0", ccText, ccTmpl),
+		"/" + commit + "/json/details/MIT.json":          detailsBody(t, "MIT", mitText, mitTmpl),
+		"/" + commit + "/json/details/BSD-3-Clause.json": detailsBody(t, "BSD-3-Clause", bsdText, bsdTmpl),
+		"/" + commit + "/json/details/CC-BY-SA-4.0.json": detailsBody(t, "CC-BY-SA-4.0", ccText, ccTmpl),
 	}
 }
 
@@ -116,6 +117,7 @@ func TestRun(t *testing.T) {
 	wantManifest := fmt.Sprintf(`{
   "licenseListVersion": "3.29.0",
   "tag": "v3.29.0",
+  "commit": "31ba1a50e5397e00a304dbadc76531740e89ee48",
   "licenses": {
     "BSD-3-Clause": {
       "placeholder": "Copyright (c) <year> <owner>.",
@@ -148,14 +150,14 @@ func TestRun(t *testing.T) {
 		"error: placeholder occurs twice in the text": {
 			ids: []string{"BSD-3-Clause"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/details/BSD-3-Clause.json"] = detailsBody(t, "BSD-3-Clause", bsdText+bsdText, bsdTmpl)
+				r["/"+commit+"/json/details/BSD-3-Clause.json"] = detailsBody(t, "BSD-3-Clause", bsdText+bsdText, bsdTmpl)
 			},
 			wantErr: "occurs 2 times",
 		},
 		"error: placeholder absent from the text": {
 			ids: []string{"MIT"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/details/MIT.json"] = detailsBody(t, "MIT", "MIT License\n", mitTmpl)
+				r["/"+commit+"/json/details/MIT.json"] = detailsBody(t, "MIT", "MIT License\n", mitTmpl)
 			},
 			wantErr: "occurs 0 times",
 		},
@@ -166,42 +168,42 @@ func TestRun(t *testing.T) {
 		"error: licenses.json server error": {
 			ids: []string{"MIT"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/licenses.json"] = fixture{status: http.StatusInternalServerError, body: "boom"}
+				r["/"+commit+"/json/licenses.json"] = fixture{status: http.StatusInternalServerError, body: "boom"}
 			},
 			wantErr: "500 Internal Server Error",
 		},
 		"error: licenses.json is not JSON": {
 			ids: []string{"MIT"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/licenses.json"] = fixture{status: http.StatusOK, body: "{"}
+				r["/"+commit+"/json/licenses.json"] = fixture{status: http.StatusOK, body: "{"}
 			},
 			wantErr: "decode",
 		},
 		"error: empty licenseListVersion": {
 			ids: []string{"MIT"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/licenses.json"] = fixture{status: http.StatusOK, body: `{"licenseListVersion":""}`}
+				r["/"+commit+"/json/licenses.json"] = fixture{status: http.StatusOK, body: `{"licenseListVersion":""}`}
 			},
 			wantErr: "licenseListVersion is empty",
 		},
 		"error: details carry another licenseId": {
 			ids: []string{"MIT"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/details/MIT.json"] = detailsBody(t, "MIT-0", mitText, mitTmpl)
+				r["/"+commit+"/json/details/MIT.json"] = detailsBody(t, "MIT-0", mitText, mitTmpl)
 			},
 			wantErr: `licenseId "MIT-0"`,
 		},
 		"error: empty licenseText": {
 			ids: []string{"CC-BY-SA-4.0"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/details/CC-BY-SA-4.0.json"] = detailsBody(t, "CC-BY-SA-4.0", "", ccTmpl)
+				r["/"+commit+"/json/details/CC-BY-SA-4.0.json"] = detailsBody(t, "CC-BY-SA-4.0", "", ccTmpl)
 			},
 			wantErr: "licenseText is empty",
 		},
 		"error: malformed template markup": {
 			ids: []string{"MIT"},
 			routes: func(r map[string]fixture) {
-				r["/v3.29.0/json/details/MIT.json"] = detailsBody(t, "MIT", mitText, `<<var;name="copyright";original="Copyright`)
+				r["/"+commit+"/json/details/MIT.json"] = detailsBody(t, "MIT", mitText, `<<var;name="copyright";original="Copyright`)
 			},
 			wantErr: "unterminated original value",
 		},
@@ -240,7 +242,7 @@ func TestRun(t *testing.T) {
 			if tc.cancel {
 				cancel()
 			}
-			cfg := config{BaseURL: srv.URL, Tag: tag, OutDir: out, IDs: tc.ids, Client: srv.Client()}
+			cfg := config{BaseURL: srv.URL, Tag: tag, Commit: commit, OutDir: out, IDs: tc.ids, Client: srv.Client()}
 
 			err := run(ctx, &cfg)
 			if tc.wantErr != "" {
@@ -277,7 +279,8 @@ func TestRun(t *testing.T) {
 			for _, want := range []string{
 				"SPDX License List", "3.29.0", "v3.29.0", "CC-BY-3.0",
 				"Linux Foundation and its Contributors",
-				srv.URL + "/v3.29.0/json/",
+				srv.URL + "/31ba1a50e5397e00a304dbadc76531740e89ee48/json/",
+				"tag `v3.29.0`",
 			} {
 				if !strings.Contains(got["README.md"], want) {
 					t.Errorf("README.md does not contain %q:\n%s", want, got["README.md"])
