@@ -1,0 +1,27 @@
+# "apache2 Go" with the author git-gen reproduces this repository's own .gitignore and .gitattributes
+# byte for byte. "apache2 go" gives the same files: the section header names the resolved template "Go".
+
+mkdir $WORK/org/upper
+cd $WORK/org/upper
+exec git-gen apache2 Go
+! stderr 'github/gitignore/'
+! stderr 'required rule'
+stderr 'INFO Generated upper repository'
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+cmp .gitattributes $GOLDEN/apache2-Go/gitattributes
+
+mkdir $WORK/org/lower
+cd $WORK/org/lower
+exec git-gen apache2 go
+! stderr 'github/gitignore/'
+! stderr 'required rule'
+stderr 'INFO Generated lower repository'
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+cmp .gitattributes $GOLDEN/apache2-Go/gitattributes
+
+# Naming the same template twice still gives one section.
+mkdir $WORK/org/both
+cd $WORK/org/both
+exec git-gen apache2 go Go
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+cmp .gitattributes $GOLDEN/apache2-Go/gitattributes

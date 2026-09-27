@@ -1,0 +1,17 @@
+# An unknown license is a command line mistake: exit 2, the valid names on stderr, and nothing written.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+
+exitcode 2 git-gen gpl go
+! stdout .
+stderr 'ERRO unknown license "gpl"'
+stderr '^licenses: bsd, bsd-project, bsd-owner, bsd-go, mit, mit-project, mit-owner, apache2, Apache2, CC4, CC-BY-SA-4.0, none$'
+emptydir .
+
+# Names are case-sensitive.
+exitcode 2 git-gen APACHE2 Go
+! stdout .
+stderr 'ERRO unknown license "APACHE2"'
+stderr '^licenses: bsd, '
+emptydir .

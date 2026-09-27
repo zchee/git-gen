@@ -1,0 +1,63 @@
+# In an empty directory, "apache2 go" makes exactly three commits, each with its own files, each signed
+# and each authored and committed by the identity of the git configuration. The branch is the configured
+# init.defaultBranch, and origin points to github.com/<org>/<project>.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen apache2 go
+! stdout .
+! stderr 'ERRO'
+! stderr '.git directory already exists'
+stderr 'INFO Generated proj repository'
+
+exec git log --format=%s --name-only
+cmp stdout $WORK/want/log
+
+exec git log --format='%an <%ae>|%cn <%ce>'
+cmp stdout $WORK/want/identity
+
+exec git cat-file -p HEAD
+stdout '^gpgsig -----BEGIN PGP SIGNATURE-----$'
+stdout '^author Test Author <author@example\.com> '
+exec git cat-file -p HEAD~1
+stdout '^gpgsig -----BEGIN PGP SIGNATURE-----$'
+exec git cat-file -p HEAD~2
+stdout '^gpgsig -----BEGIN PGP SIGNATURE-----$'
+! stdout '^parent '
+
+exec git symbolic-ref HEAD
+stdout '^refs/heads/trunk$'
+
+exec git remote get-url origin
+stdout '^git@github\.com:org/proj\.git$'
+
+# The files outside the three commits stay in the working tree, untracked.
+exec git status --porcelain
+cmp stdout $WORK/want/status
+
+-- want/log --
+go.mod: init module
+
+go.mod
+go.sum
+github: add .github directory
+
+.github/PULL_REQUEST_TEMPLATE.md
+Initial commit
+
+.gitattributes
+.gitignore
+CODE_OF_CONDUCT.md
+LICENSE
+-- want/identity --
+Test Author <author@example.com>|Test Author <author@example.com>
+Test Author <author@example.com>|Test Author <author@example.com>
+Test Author <author@example.com>|Test Author <author@example.com>
+-- want/status --
+?? .github/CODEOWNERS
+?? .github/ISSUE_TEMPLATE/
+?? .github/dependabot.yaml
+?? .github/renovate.json5
+?? .golangci.yaml
+?? README.md
+?? hack/

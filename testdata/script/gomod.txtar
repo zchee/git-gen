@@ -1,0 +1,52 @@
+# go.mod takes its module path from GOPATH when the project is inside it, and github.com/<org>/<project>
+# otherwise. Its go line is the major.minor of `go env GOVERSION`, and go.sum is empty. An existing
+# go.mod is left as it is.
+
+# Outside GOPATH.
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen apache2 go
+grep '^module github\.com/org/proj$' go.mod
+grep '^go '$GO_MINOR'$' go.mod
+exists go.sum
+! grep . go.sum
+
+# Inside GOPATH.
+mkdir $GOPATH/src/example.com/foo/bar
+cd $GOPATH/src/example.com/foo/bar
+exec git-gen apache2 Go
+grep '^module example\.com/foo/bar$' go.mod
+grep '^go '$GO_MINOR'$' go.mod
+exists go.sum
+! grep . go.sum
+
+# ORGANIZATION_NAME and PROJECT_NAME name the fallback module path.
+env ORGANIZATION_NAME=acme
+env PROJECT_NAME=rocket
+mkdir $WORK/org/named
+cd $WORK/org/named
+exec git-gen apache2 go
+grep '^module github\.com/acme/rocket$' go.mod
+env ORGANIZATION_NAME=
+env PROJECT_NAME=
+
+# An existing go.mod stays byte for byte, and no go.sum is added next to it.
+cd $WORK/org/keep
+exec git-gen apache2 go
+cmp go.mod $WORK/want/go.mod
+! exists go.sum
+exec git log --format=%s --name-only -1
+cmp stdout $WORK/want/log
+
+-- org/keep/go.mod --
+module example.com/keep
+
+go 1.20
+-- want/go.mod --
+module example.com/keep
+
+go 1.20
+-- want/log --
+go.mod: init module
+
+go.mod

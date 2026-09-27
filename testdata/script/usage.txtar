@@ -1,0 +1,69 @@
+# Command line mistakes exit with 2, print the error and the usage to stderr, print nothing to stdout,
+# and leave the working directory empty.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+
+exitcode 2 git-gen
+! stdout .
+stderr 'ERRO want a license and at least one language'
+stderr '^usage: git-gen \[-v\] <license> <language>\.\.\.$'
+stderr '^       git-gen -l$'
+emptydir .
+
+exitcode 2 git-gen apache2
+! stdout .
+stderr 'ERRO want a license and at least one language'
+stderr '^usage: git-gen'
+emptydir .
+
+# A single argument other than -l is not enough, even when it names a language.
+exitcode 2 git-gen Go
+! stdout .
+stderr 'ERRO want a license and at least one language'
+stderr '^usage: git-gen'
+emptydir .
+
+# A flag after the first argument is not parsed as a flag.
+exitcode 2 git-gen apache2 go -v
+! stdout .
+stderr 'ERRO argument "-v" starts with ''-'': flags come before the arguments'
+stderr '^usage: git-gen'
+emptydir .
+
+exitcode 2 git-gen apache2 -
+! stdout .
+stderr 'ERRO argument "-" starts with ''-'''
+emptydir .
+
+exitcode 2 git-gen -- apache2 -x
+! stdout .
+stderr 'ERRO argument "-x" starts with ''-'''
+emptydir .
+
+exitcode 2 git-gen -x apache2 go
+! stdout .
+stderr 'ERRO flag provided but not defined: -x'
+stderr '^usage: git-gen'
+emptydir .
+
+exitcode 2 git-gen -l Go
+! stdout .
+stderr 'ERRO -l takes no arguments'
+emptydir .
+
+# A language that would leave the gitignore checkout is a command line mistake too.
+exitcode 2 git-gen apache2 ../escape
+! stdout .
+stderr 'ERRO invalid language "../escape"'
+stderr '^usage: git-gen'
+emptydir .
+
+# -h prints the usage and succeeds.
+exitcode 0 git-gen -h
+! stdout .
+stderr '^usage: git-gen'
+stderr '^  -l\s'
+stderr '^  -v\s'
+! stderr ERRO
+emptydir .

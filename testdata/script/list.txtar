@@ -1,0 +1,22 @@
+# -l prints the template names of the gitignore checkout to stdout and writes nothing. An existing
+# checkout is not pulled.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+
+exec git-gen -l
+cmp stdout $WORK/want/list
+! stderr .
+emptydir .
+
+exec git-gen -v -l
+cmp stdout $WORK/want/list
+stderr '^DEBU The gitignore checkout exists; not pulled dir=.*/home/src/github\.com/github/gitignore$'
+emptydir .
+
+-- want/list --
+Global/JetBrains
+Go
+Python
+Rust
+community/Golang

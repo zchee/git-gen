@@ -1,0 +1,37 @@
+# A language without a template is skipped with a warning that names it. It adds no section, and the run
+# succeeds.
+
+mkdir $WORK/org/mixed
+cd $WORK/org/mixed
+exec git-gen apache2 Nope Go
+stderr 'WARN No gitignore template for the language; skipped language=Nope'
+! stderr 'ERRO'
+stderr 'INFO Generated mixed repository'
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+cmp .gitattributes $GOLDEN/apache2-Go/gitattributes
+
+# Template names are matched exactly, so "golang" is not "Go".
+mkdir $WORK/org/none
+cd $WORK/org/none
+exec git-gen none golang Unknown
+stderr 'WARN No gitignore template for the language; skipped language=golang'
+stderr 'WARN No gitignore template for the language; skipped language=Unknown'
+stderr 'INFO Generated none repository'
+cmp .gitignore $WORK/want/gitignore
+! exists LICENSE
+! exists go.mod
+! exists .github
+exec git log --format=%s --name-only
+cmp stdout $WORK/want/log
+
+-- want/gitignore --
+# git-gen project generated files to ignore
+#  If you want to ignore files created by your editor/tools,
+#  please consider a global .gitignore https://docs.github.com/en/get-started/git-basics/ignoring-files.
+#  PLEASE DO NOT open a pull request to add something created by your editor or tools
+-- want/log --
+Initial commit
+
+.gitattributes
+.gitignore
+CODE_OF_CONDUCT.md

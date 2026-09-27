@@ -1,0 +1,26 @@
+# git-gen runs cut off from the owner's environment. The gitignore checkout is the copy under $WORK/home,
+# which is not a git repository, so the sync is skipped. No GitHub token is found, so the GitHub step is
+# skipped without a request. The identity and the signing program come from $WORK/gitconfig.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen -v apache2 go
+! stdout .
+stderr '^DEBU The gitignore checkout is not a git repository; sync skipped dir=.*/home/src/github\.com/github/gitignore$'
+stderr '^WARN GitHub settings skipped: no GitHub token repository=org/proj$'
+stderr '^DEBU Git identity author="Test Author <author@example\.com>" committer="Test Author <author@example\.com>" branch=trunk$'
+stderr '^DEBU Signing format=openpgp program=.*/testdata/signer/ok\.sh key="committer identity"$'
+stderr '^DEBU Added remote origin url=git@github\.com:org/proj\.git$'
+stderr '^INFO Generated proj repository$'
+
+# At the default level, only the warning and the last line are printed.
+mkdir $WORK/org/quiet
+cd $WORK/org/quiet
+exec git-gen apache2 go
+! stdout .
+! stderr 'DEBU'
+cmp stderr $WORK/want/stderr
+
+-- want/stderr --
+WARN GitHub settings skipped: no GitHub token repository=org/quiet
+INFO Generated quiet repository

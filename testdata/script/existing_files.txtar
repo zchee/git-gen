@@ -1,0 +1,66 @@
+# Files that already exist are left as they are: LICENSE, README.md, CODE_OF_CONDUCT.md and the Go
+# boilerplate. .gitattributes keeps its content and gets the blocks it lacks. .gitignore is always
+# rewritten. The first commit takes the files as they are on disk.
+
+cd $WORK/org/proj
+exec git-gen apache2 go
+stderr 'INFO Generated proj repository'
+
+cmp LICENSE $WORK/want/LICENSE
+cmp README.md $WORK/want/README.md
+cmp CODE_OF_CONDUCT.md $WORK/want/CODE_OF_CONDUCT.md
+cmp .golangci.yaml $WORK/want/golangci.yaml
+cmp .gitattributes $WORK/want/gitattributes
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+
+exec git log --format=%s --name-only
+cmp stdout $WORK/want/log
+
+exec git cat-file -p HEAD~2:LICENSE
+cmp stdout $WORK/want/LICENSE
+exec git cat-file -p HEAD~2:CODE_OF_CONDUCT.md
+cmp stdout $WORK/want/CODE_OF_CONDUCT.md
+
+-- org/proj/LICENSE --
+All rights reserved by the owner.
+-- org/proj/README.md --
+# proj, written by hand
+-- org/proj/CODE_OF_CONDUCT.md --
+Be kind.
+-- org/proj/.golangci.yaml --
+version: "2"
+-- org/proj/.gitignore --
+/stale
+-- org/proj/.gitattributes --
+*.png binary
+-- want/LICENSE --
+All rights reserved by the owner.
+-- want/README.md --
+# proj, written by hand
+-- want/CODE_OF_CONDUCT.md --
+Be kind.
+-- want/golangci.yaml --
+version: "2"
+-- want/gitattributes --
+*.png binary
+# git-gen project gitattributes file
+#  https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
+
+* text=auto eol=lf
+
+go.sum       linguist-vendored
+go.work.sum  linguist-vendored
+-- want/log --
+go.mod: init module
+
+go.mod
+go.sum
+github: add .github directory
+
+.github/PULL_REQUEST_TEMPLATE.md
+Initial commit
+
+.gitattributes
+.gitignore
+CODE_OF_CONDUCT.md
+LICENSE

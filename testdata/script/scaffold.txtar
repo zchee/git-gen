@@ -1,0 +1,160 @@
+# The files placed besides .gitignore and .gitattributes depend on the languages and the license. Go
+# languages place .github/, .golangci.yaml, go.mod and go.sum, and hack/ with Apache-2.0 only; Go and
+# community/Golang also place the Makefile; go-pkg places nothing. Several Go languages place the union,
+# once. From .github/, CODE_OF_CONDUCT.md, .DS_Store and empty directories are never placed.
+
+mkdir $XDG_CONFIG_HOME/boilerplate/.github/workflows
+cp ds_store $XDG_CONFIG_HOME/boilerplate/.github/.DS_Store
+cp ds_store $XDG_CONFIG_HOME/boilerplate/.github/ISSUE_TEMPLATE/.DS_Store
+
+mkdir $WORK/o/go-apache2
+cd $WORK/o/go-apache2
+exec git-gen apache2 go
+tree .
+cmp stdout $WORK/want/go-hack
+grep '^// Copyright [0-9]{4} The git-gen Authors\.$' hack/boilerplate/boilerplate.go.txt
+grep '- prefix\(github\.com/o/go-apache2\)$' .golangci.yaml
+grep 'module-path: github\.com/o/go-apache2$' .golangci.yaml
+grep 'label: What version of go-apache2 are you using\?$' .github/ISSUE_TEMPLATE/bug_report.yml
+grep '^zchee\.io@gmail\.com\.$' CODE_OF_CONDUCT.md
+! grep 'INSERT CONTACT METHOD' CODE_OF_CONDUCT.md
+grep '^# go-apache2$' README.md
+grep '^Apache License$' LICENSE
+grep '^Version 2\.0, January 2004$' LICENSE
+
+mkdir $WORK/o/go-bsd
+cd $WORK/o/go-bsd
+exec git-gen bsd go
+tree .
+cmp stdout $WORK/want/go
+grep '^Copyright \(c\) [0-9]{4} The git-gen Authors\.$' LICENSE
+
+mkdir $WORK/o/Go-apache2
+cd $WORK/o/Go-apache2
+exec git-gen apache2 Go
+tree .
+cmp stdout $WORK/want/go-make-hack
+cmp Makefile $XDG_CONFIG_HOME/boilerplate/go/Makefile
+
+mkdir $WORK/o/Go-bsd
+cd $WORK/o/Go-bsd
+exec git-gen bsd Go
+tree .
+cmp stdout $WORK/want/go-make
+
+mkdir $WORK/o/golang-apache2
+cd $WORK/o/golang-apache2
+exec git-gen apache2 community/Golang
+tree .
+cmp stdout $WORK/want/go-make-hack
+
+mkdir $WORK/o/golang-bsd
+cd $WORK/o/golang-bsd
+exec git-gen bsd community/Golang
+tree .
+cmp stdout $WORK/want/go-make
+
+mkdir $WORK/o/gopkg-apache2
+cd $WORK/o/gopkg-apache2
+exec git-gen apache2 go-pkg
+tree .
+cmp stdout $WORK/want/plain
+
+mkdir $WORK/o/gopkg-bsd
+cd $WORK/o/gopkg-bsd
+exec git-gen bsd go-pkg
+tree .
+cmp stdout $WORK/want/plain
+
+mkdir $WORK/o/both-apache2
+cd $WORK/o/both-apache2
+exec git-gen apache2 go Go
+tree .
+cmp stdout $WORK/want/go-make-hack
+
+mkdir $WORK/o/both-bsd
+cd $WORK/o/both-bsd
+exec git-gen bsd go Go
+tree .
+cmp stdout $WORK/want/go-make
+
+-- ds_store --
+Finder metadata
+-- want/plain --
+.gitattributes
+.gitignore
+CODE_OF_CONDUCT.md
+LICENSE
+README.md
+-- want/go --
+.gitattributes
+.github/
+.github/CODEOWNERS
+.github/ISSUE_TEMPLATE/
+.github/ISSUE_TEMPLATE/bug_report.yml
+.github/PULL_REQUEST_TEMPLATE.md
+.github/dependabot.yaml
+.github/renovate.json5
+.gitignore
+.golangci.yaml
+CODE_OF_CONDUCT.md
+LICENSE
+README.md
+go.mod
+go.sum
+-- want/go-hack --
+.gitattributes
+.github/
+.github/CODEOWNERS
+.github/ISSUE_TEMPLATE/
+.github/ISSUE_TEMPLATE/bug_report.yml
+.github/PULL_REQUEST_TEMPLATE.md
+.github/dependabot.yaml
+.github/renovate.json5
+.gitignore
+.golangci.yaml
+CODE_OF_CONDUCT.md
+LICENSE
+README.md
+go.mod
+go.sum
+hack/
+hack/boilerplate/
+hack/boilerplate/boilerplate.go.txt
+-- want/go-make --
+.gitattributes
+.github/
+.github/CODEOWNERS
+.github/ISSUE_TEMPLATE/
+.github/ISSUE_TEMPLATE/bug_report.yml
+.github/PULL_REQUEST_TEMPLATE.md
+.github/dependabot.yaml
+.github/renovate.json5
+.gitignore
+.golangci.yaml
+CODE_OF_CONDUCT.md
+LICENSE
+Makefile
+README.md
+go.mod
+go.sum
+-- want/go-make-hack --
+.gitattributes
+.github/
+.github/CODEOWNERS
+.github/ISSUE_TEMPLATE/
+.github/ISSUE_TEMPLATE/bug_report.yml
+.github/PULL_REQUEST_TEMPLATE.md
+.github/dependabot.yaml
+.github/renovate.json5
+.gitignore
+.golangci.yaml
+CODE_OF_CONDUCT.md
+LICENSE
+Makefile
+README.md
+go.mod
+go.sum
+hack/
+hack/boilerplate/
+hack/boilerplate/boilerplate.go.txt

@@ -1,0 +1,51 @@
+# A boilerplate template that the chosen languages need and that is missing fails the run with exit 1
+# before anything is written. The message names the missing path. A template the languages do not need
+# may be missing.
+
+# The Makefile is needed by Go but not by go.
+rm $XDG_CONFIG_HOME/boilerplate/go/Makefile
+mkdir $WORK/org/make
+cd $WORK/org/make
+exitcode 1 git-gen apache2 Go
+! stdout .
+stderr 'ERRO missing boilerplate templates: .*/xdg/boilerplate/go/Makefile$'
+! stderr 'Generated'
+emptydir .
+
+mkdir $WORK/org/nomake
+cd $WORK/org/nomake
+exec git-gen apache2 go
+stderr 'INFO Generated nomake repository'
+exists go.mod
+! exists Makefile
+
+# hack/boilerplate/boilerplate.go.txt is needed by Apache-2.0 only.
+rm $XDG_CONFIG_HOME/boilerplate/go/boilerplate.go.txt
+mkdir $WORK/org/hack
+cd $WORK/org/hack
+exitcode 1 git-gen apache2 go
+stderr 'ERRO missing boilerplate templates: .*/xdg/boilerplate/go/boilerplate\.go\.txt$'
+emptydir .
+
+mkdir $WORK/org/nohack
+cd $WORK/org/nohack
+exec git-gen bsd go
+stderr 'INFO Generated nohack repository'
+! exists hack
+
+# Every missing template is named.
+rm $XDG_CONFIG_HOME/boilerplate/go/.golangci.yaml
+rm $XDG_CONFIG_HOME/boilerplate/.github/ISSUE_TEMPLATE/bug_report.yml
+mkdir $WORK/org/github
+cd $WORK/org/github
+exitcode 1 git-gen bsd go
+stderr 'ERRO missing boilerplate templates: .*/xdg/boilerplate/\.github/ISSUE_TEMPLATE/bug_report\.yml, .*/xdg/boilerplate/go/\.golangci\.yaml$'
+emptydir .
+
+# CODE_OF_CONDUCT.md is needed by every language.
+rm $XDG_CONFIG_HOME/boilerplate/.github/CODE_OF_CONDUCT.md
+mkdir $WORK/org/coc
+cd $WORK/org/coc
+exitcode 1 git-gen none Rust
+stderr 'ERRO missing boilerplate templates: .*/xdg/boilerplate/\.github/CODE_OF_CONDUCT\.md$'
+emptydir .

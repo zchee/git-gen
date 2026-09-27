@@ -1,0 +1,23 @@
+# Without the go command on PATH, go.mod is not created: a warning, no go.mod and no go.sum, and the run
+# succeeds with the other two commits. $NOGO_PATH holds git-gen and cat, which the signing stub needs.
+
+env SAVED_PATH=$PATH
+env PATH=$NOGO_PATH
+! exec go version
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen apache2 go
+stderr 'WARN go.mod not created: .*executable file not found'
+stderr 'INFO Generated proj repository'
+! exists go.mod
+! exists go.sum
+exists .golangci.yaml
+
+env PATH=$SAVED_PATH
+exec git log --format=%s
+cmp stdout $WORK/want/log
+
+-- want/log --
+github: add .github directory
+Initial commit

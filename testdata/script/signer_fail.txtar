@@ -1,0 +1,19 @@
+# A signing program that fails is found by the test signature before the repository is initialized:
+# exit 1, no .git and no file. The gpg status lines of the program do not reach the message.
+
+env GIT_CONFIG_GLOBAL=$WORK/gitconfig-fail
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+
+exitcode 1 git-gen apache2 go
+! stdout .
+stderr 'ERRO signing: test signature: .*No secret key'
+! stderr 'GNUPG'
+! stderr 'KEY_CONSIDERED'
+! stderr 'Generated'
+emptydir .
+
+# The same holds for a language without a scaffold.
+exitcode 1 git-gen none Rust
+stderr 'No secret key'
+emptydir .

@@ -1,0 +1,25 @@
+# The community/Golang allowlist ignores CODE_OF_CONDUCT.md and .github/. Those paths are left out of the
+# commits with a warning that names each of them, so "apache2 community/Golang" makes two commits.
+# go.mod and go.sum are committed regardless of .gitignore.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen apache2 community/Golang
+stderr 'WARN Not committed: ignored by \.gitignore path=CODE_OF_CONDUCT\.md$'
+stderr 'WARN Not committed: ignored by \.gitignore path=\.github/PULL_REQUEST_TEMPLATE\.md$'
+! stderr 'ERRO'
+stderr 'INFO Generated proj repository'
+
+exec git log --format=%s --name-only
+cmp stdout $WORK/want/log
+
+-- want/log --
+go.mod: init module
+
+go.mod
+go.sum
+Initial commit
+
+.gitattributes
+.gitignore
+LICENSE

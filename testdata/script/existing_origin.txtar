@@ -1,0 +1,38 @@
+# In an existing repository whose origin points to another repository, origin is left as it is and the
+# GitHub step is skipped with a warning. The identity of the repository's own .git/config takes precedence
+# over the global one.
+
+mkdir $WORK/org/proj/.git/objects
+mkdir $WORK/org/proj/.git/refs/heads
+cp $WORK/repo-head $WORK/org/proj/.git/HEAD
+cp $WORK/repo-config $WORK/org/proj/.git/config
+
+cd $WORK/org/proj
+exec git-gen apache2 go
+stderr '^WARN \.git directory already exists$'
+stderr '^WARN GitHub settings skipped: origin points to another repository origin=git@github\.com:someone/else\.git want=org/proj$'
+! stderr 'ERRO'
+stderr '^INFO Generated proj repository$'
+
+exec git remote get-url origin
+stdout '^git@github\.com:someone/else\.git$'
+exec git log --format='%an <%ae>|%cn <%ce>|%s'
+cmp stdout $WORK/want/log
+
+-- repo-head --
+ref: refs/heads/trunk
+-- repo-config --
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+[remote "origin"]
+	url = git@github.com:someone/else.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[user]
+	name = Repo User
+	email = repo@example.com
+-- want/log --
+Repo User <repo@example.com>|Repo User <repo@example.com>|go.mod: init module
+Repo User <repo@example.com>|Repo User <repo@example.com>|github: add .github directory
+Repo User <repo@example.com>|Repo User <repo@example.com>|Initial commit

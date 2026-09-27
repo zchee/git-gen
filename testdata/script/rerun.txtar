@@ -1,0 +1,51 @@
+# Running git-gen again in the same directory succeeds without new commits and leaves .gitattributes
+# byte for byte. A second run with another language adds only the .gitattributes block it lacks.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen apache2 go
+exec git log --format=%H
+cp stdout $WORK/commits
+cp .gitattributes $WORK/gitattributes
+
+exec git-gen apache2 go
+stderr 'WARN \.git directory already exists'
+! stderr 'ERRO'
+stderr 'INFO Generated proj repository'
+exec git log --format=%H
+cmp stdout $WORK/commits
+cmp .gitattributes $WORK/gitattributes
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+exec git status --porcelain
+! stdout '^[AM]'
+
+# Rust first, then go: one header block and one go.sum block, in that order. The first commit step of
+# the second run only modifies files, so it makes no commit; those changes stay staged and go into the
+# .github commit, as with `git status --porcelain | grep '^A'`.
+mkdir $WORK/org/second
+cd $WORK/org/second
+exec git-gen apache2 Rust
+! exists go.mod
+exec git-gen apache2 go
+stderr 'WARN \.git directory already exists'
+cmp .gitattributes $GOLDEN/apache2-Go/gitattributes
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+exec git log --format=%s --name-only
+cmp stdout $WORK/want/log
+
+-- want/log --
+go.mod: init module
+
+go.mod
+go.sum
+github: add .github directory
+
+.gitattributes
+.github/PULL_REQUEST_TEMPLATE.md
+.gitignore
+Initial commit
+
+.gitattributes
+.gitignore
+CODE_OF_CONDUCT.md
+LICENSE

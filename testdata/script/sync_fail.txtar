@@ -1,0 +1,30 @@
+# When the gitignore checkout is a git repository whose pull fails, git-gen warns and uses the checkout as
+# it is. Here origin is a local path that does not exist, so the pull fails without the network.
+
+mkdir $HOME/src/github.com/github/gitignore/.git/objects
+mkdir $HOME/src/github.com/github/gitignore/.git/refs/heads
+cp $WORK/checkout-head $HOME/src/github.com/github/gitignore/.git/HEAD
+cp $WORK/checkout-config $HOME/src/github.com/github/gitignore/.git/config
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen apache2 Go
+stderr '^WARN Cannot update the gitignore checkout; using it as it is dir=.*/home/src/github\.com/github/gitignore err="pull origin main into .*: repository not found"$'
+! stderr 'ERRO'
+stderr '^INFO Generated proj repository$'
+cmp .gitignore $GOLDEN/apache2-Go/gitignore
+
+# -l never pulls, so it does not warn.
+exec git-gen -l
+! stderr .
+stdout '^Go$'
+
+-- checkout-head --
+ref: refs/heads/main
+-- checkout-config --
+[core]
+	repositoryformatversion = 0
+	bare = false
+[remote "origin"]
+	url = /nonexistent/github/gitignore.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
