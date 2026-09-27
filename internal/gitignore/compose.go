@@ -80,8 +80,6 @@ type replacement struct {
 	// every replaces every occurrence, as a sed substitution applied to each
 	// line; otherwise only the first occurrence is replaced.
 	every bool
-	// optional edits may find nothing without a warning.
-	optional bool
 }
 
 // goEdits are the edits of Go.gitignore for "go" and "Go".
@@ -96,13 +94,12 @@ var goEdits = []replacement{
 }
 
 // golangEdits are the edits of community/Golang/Go.AllowList.gitignore. The
-// last two target text that the leading comment block usually held, so they
-// may find nothing once that block is gone.
+// "# Recommended: Go.AllowList.gitignore" line needs no edit: it belongs to the
+// leading comment block, which is dropped before the edits run.
 var golangEdits = []replacement{
 	{what: "allow /.gitattributes", old: "# But not these files...", new: "!/.gitattributes", every: true},
 	{what: "allow Makefile", old: "# !Makefile", new: "!Makefile", every: true},
-	{what: "remove the Recommended line", old: "#\n# Recommended: Go.AllowList.gitignore\n", optional: true},
-	{what: "remove the subdirectories comment", old: "# ...even if they are in subdirectories\n", optional: true},
+	{what: "remove the subdirectories comment", old: "# ...even if they are in subdirectories\n"},
 }
 
 // goSuffix is the block that "go" and "Go" append after the Go section.
@@ -240,9 +237,7 @@ func applyEdits(edits []replacement) func([]byte) ([]byte, []string) {
 		for _, e := range edits {
 			old := []byte(e.old)
 			if !bytes.Contains(body, old) {
-				if !e.optional {
-					missed = append(missed, e.what)
-				}
+				missed = append(missed, e.what)
 				continue
 			}
 			n := 1

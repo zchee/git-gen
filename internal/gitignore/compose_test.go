@@ -25,10 +25,6 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 )
 
-// goldenIgnore is the .gitignore that the script wrote for "apache2 Go" with
-// author "git-gen" (this repository at commit d8f4bcf).
-const goldenIgnore = "testdata/golden/gitignore.Go"
-
 func resolve(tb testing.TB, c *Catalog, args ...string) []Language {
 	tb.Helper()
 	langs, unknown, err := c.Resolve(args)
@@ -332,19 +328,28 @@ func TestComposeTemplates(t *testing.T) {
 			args:  []string{"Rust"},
 			want:  header + "\n# github/gitignore/Rust\n\nkept\n",
 		},
-		"success: allowlist edits find nothing and warn only for the first two": {
+		"success: allowlist edits find nothing and warn": {
 			files: map[string]string{"community/Golang/Go.AllowList.gitignore": "# comment\n#\n\n*\n!*.go\n"},
 			args:  []string{"community/Golang"},
 			want:  header + "\n# github/gitignore/community/Golang\n*\n!*.go\n",
 			wantWarnings: []string{
 				"github/gitignore/community/Golang: cannot allow /.gitattributes: text not found, section left as it is",
 				"github/gitignore/community/Golang: cannot allow Makefile: text not found, section left as it is",
+				"github/gitignore/community/Golang: cannot remove the subdirectories comment: text not found, section left as it is",
+			},
+		},
+		"success: allowlist without the subdirectories comment warns": {
+			files: map[string]string{"community/Golang/Go.AllowList.gitignore": "# comment\n\n*\n\n# But not these files...\n!/.gitignore\n\n# !Makefile\n\n!*/\n"},
+			args:  []string{"community/Golang"},
+			want:  header + "\n# github/gitignore/community/Golang\n*\n\n!/.gitattributes\n!/.gitignore\n\n!Makefile\n\n!*/\n",
+			wantWarnings: []string{
+				"github/gitignore/community/Golang: cannot remove the subdirectories comment: text not found, section left as it is",
 			},
 		},
 		"success: allowlist without a leading comment keeps its first blank line": {
-			files: map[string]string{"community/Golang/Go.AllowList.gitignore": "\n*\n# But not these files...\n# !Makefile\n"},
+			files: map[string]string{"community/Golang/Go.AllowList.gitignore": "\n*\n# But not these files...\n# !Makefile\n# ...even if they are in subdirectories\n!*/\n"},
 			args:  []string{"community/Golang"},
-			want:  header + "\n# github/gitignore/community/Golang\n\n*\n!/.gitattributes\n!Makefile\n",
+			want:  header + "\n# github/gitignore/community/Golang\n\n*\n!/.gitattributes\n!Makefile\n!*/\n",
 		},
 		"success: author placeholder in a template is kept": {
 			files: map[string]string{"Foo.gitignore": "# AUTHOR notes\nAUTHOR\n"},

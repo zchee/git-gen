@@ -33,6 +33,12 @@ var (
 	// escapeFile lies one level above fixtureDir. No output may contain its
 	// sentinel line.
 	escapeFile = filepath.Join("..", "..", "testdata", "escape.gitignore")
+	// goldenIgnore and goldenAttributes are the .gitignore and .gitattributes
+	// that the script wrote for "apache2 Go" with author "git-gen" (this
+	// repository at commit d8f4bcf). The end-to-end tests compare with the
+	// same files.
+	goldenIgnore     = filepath.Join("..", "..", "testdata", "golden", "apache2-Go", "gitignore")
+	goldenAttributes = filepath.Join("..", "..", "testdata", "golden", "apache2-Go", "gitattributes")
 )
 
 // fixtureNames is the listing of fixtureDir.

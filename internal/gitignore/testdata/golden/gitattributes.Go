@@ -1,7 +1,0 @@
-# git-gen project gitattributes file
-#  https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
-
-* text=auto eol=lf
-
-go.sum       linguist-vendored
-go.work.sum  linguist-vendored

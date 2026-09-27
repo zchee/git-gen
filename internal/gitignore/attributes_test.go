@@ -22,10 +22,6 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 )
 
-// goldenAttributes is the .gitattributes that the script wrote for
-// "apache2 Go" with author "git-gen" (this repository at commit d8f4bcf).
-const goldenAttributes = "testdata/golden/gitattributes.Go"
-
 func TestAttributes(t *testing.T) {
 	golden := string(readFile(t, goldenAttributes))
 	// The golden file is the header block, a blank line and the go.sum block.
