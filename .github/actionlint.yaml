@@ -1,0 +1,5 @@
+# Runner labels this repository uses that actionlint does not know yet.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - xcode-27
