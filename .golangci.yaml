@@ -10,9 +10,9 @@ run:
   relative-path-mode: gitroot
   issues-exit-code: 1
   tests: true
-  modules-download-mode: mod
+  modules-download-mode: readonly
   allow-parallel-runners: true
-  go: "1.26"
+  go: "1.27"
 
 # https://golangci-lint.run/docs/configuration/file/#output-configuration
 output:
