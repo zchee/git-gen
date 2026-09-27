@@ -383,8 +383,8 @@ func TestLoadConfigNilGetenv(t *testing.T) {
 	}
 }
 
-// TestLoadConfigSymlink is AC28: go-git's own loader fails on a path through a symlink whose target is
-// absolute (plan F4); LoadConfig must read it.
+// TestLoadConfigSymlink covers a path through a symlink whose target is absolute: go-git's own loader
+// fails on it ("path escapes from parent"); LoadConfig must read it.
 func TestLoadConfigSymlink(t *testing.T) {
 	t.Parallel()
 

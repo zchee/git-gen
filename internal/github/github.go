@@ -100,7 +100,7 @@ type Client struct {
 }
 
 // New returns a Client configured by opts.
-func New(opts Options) *Client { //nolint:gocritic // hugeParam: New runs once per process and its signature is fixed by the package contract.
+func New(opts Options) *Client { //nolint:gocritic // hugeParam: New runs once per process; Options stays a value so callers build it inline.
 	c := &Client{token: opts.Token, api: opts.API}
 	if c.token == nil {
 		c.token = func(host string) string {

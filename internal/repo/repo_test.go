@@ -139,14 +139,14 @@ func readGitConfig(t *testing.T, dir string) *config.Config {
 	return cfg
 }
 
-// The steps of plan 6.6.
+// planSteps are the commit steps of git-gen, in order.
 var planSteps = []CommitStep{
 	{Message: "Initial commit", Paths: []string{".gitignore", ".gitattributes", "LICENSE", "CODE_OF_CONDUCT.md"}},
 	{Message: "github: add .github directory", Paths: []string{".github/PULL_REQUEST_TEMPLATE.md"}},
 	{Message: "go.mod: init module", Paths: []string{"go.mod", "go.sum"}, Force: true},
 }
 
-// goGitignore stands for the .gitignore of `git-gen apache2 go`; none of the paths of plan 6.6 match it.
+// goGitignore stands for the .gitignore of `git-gen apache2 go`; none of the paths of planSteps match it.
 const goGitignore = `# git-gen project generated files to ignore
 
 # github/gitignore/Go
@@ -157,7 +157,7 @@ vendor/
 `
 
 // allowlistGitignore is the .gitignore of `git-gen apache2 community/Golang`: the header, then the
-// community/Golang allowlist after the four edits of the script (git-gen:150-155).
+// community/Golang allowlist after the four edits git-gen makes to it.
 const allowlistGitignore = `# git-gen project generated files to ignore
 #  If you want to ignore files created by your editor/tools,
 #  please consider a global .gitignore https://docs.github.com/en/get-started/git-basics/ignoring-files.
@@ -205,7 +205,7 @@ type stepWant struct {
 	tree            []string // files of HEAD after the step; nil when the step makes no commit
 }
 
-// TestCommit covers AC19, AC20 and AC21 (package part).
+// TestCommit checks the commits that planSteps make, and that running them again commits nothing.
 func TestCommit(t *testing.T) {
 	t.Parallel()
 
@@ -217,7 +217,7 @@ func TestCommit(t *testing.T) {
 		// wantStatus is `git status --porcelain` after the steps, sorted.
 		wantStatus []string
 	}{
-		"success: apache2 go makes the three commits of plan 6.6": {
+		"success: apache2 go makes the initial, .github and go.mod commits": {
 			files: generatedFiles(goGitignore),
 			want: []stepWant{
 				{
@@ -389,7 +389,7 @@ func TestCommit(t *testing.T) {
 				t.Errorf("trees mismatch (-want +got):\n%s", diff)
 			}
 
-			// AC21: the same steps again make no commit.
+			// The same steps again make no commit.
 			for i, step := range planSteps {
 				res, err := r.Commit(t.Context(), step)
 				if err != nil {
@@ -501,7 +501,7 @@ func TestCommitContext(t *testing.T) {
 	}
 }
 
-// TestCommitErrors covers the failures of Commit, including AC22's read-back check.
+// TestCommitErrors covers the failures of Commit, including the read-back check for an empty signature.
 func TestCommitErrors(t *testing.T) {
 	t.Parallel()
 
@@ -606,7 +606,7 @@ func TestCommitErrors(t *testing.T) {
 	}
 }
 
-// TestOpen covers AC25.
+// TestOpen checks the initial branch and core.ignorecase of a new repository.
 func TestOpen(t *testing.T) {
 	t.Parallel()
 
@@ -830,7 +830,7 @@ func TestSwapCase(t *testing.T) {
 	}
 }
 
-// TestAddRemote covers AC26.
+// TestAddRemote checks that origin is added and that an existing origin is left unchanged.
 func TestAddRemote(t *testing.T) {
 	t.Parallel()
 

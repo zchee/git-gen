@@ -84,7 +84,7 @@ type Repository struct {
 //
 // A new repository starts on opts.Config.DefaultBranch ("main" when empty). When the file system ignores
 // case, core.ignorecase = true is written to .git/config, as git init does; nothing is written otherwise.
-func Open(opts Options) (r *Repository, existed bool, err error) { //nolint:gocritic // hugeParam: Open runs once per process and contract section 8 fixes Options by value.
+func Open(opts Options) (r *Repository, existed bool, err error) { //nolint:gocritic // hugeParam: Open runs once per process; Options stays a value so callers build it inline.
 	dir, err := filepath.Abs(opts.Dir)
 	if err != nil {
 		return nil, false, fmt.Errorf("repository directory: %w", err)

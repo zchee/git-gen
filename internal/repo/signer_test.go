@@ -24,7 +24,7 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 )
 
-// TestNewSigner covers AC8 (package part) and the preflight half of AC22.
+// TestNewSigner checks the preflight signature, which fails when the program fails or signs nothing.
 func TestNewSigner(t *testing.T) {
 	t.Parallel()
 

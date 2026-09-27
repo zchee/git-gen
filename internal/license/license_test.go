@@ -191,7 +191,7 @@ func TestNames(t *testing.T) {
 	}
 }
 
-// TestRender is AC9: every accepted name renders the embedded text with only the copyright line changed.
+// TestRender checks that every accepted name renders the embedded text with only the copyright line changed.
 func TestRender(t *testing.T) {
 	tests := map[string]struct {
 		name string
@@ -533,7 +533,7 @@ func TestManifestIDs(t *testing.T) {
 	}
 }
 
-// TestManifestData is AC31 plus the invariants Render relies on.
+// TestManifestData checks each embedded text against its manifest SHA-256, plus the invariants Render relies on.
 func TestManifestData(t *testing.T) {
 	m := readManifest(t)
 	if diff := cmp.Diff(m, embedded); diff != "" {
@@ -586,7 +586,7 @@ func TestManifestData(t *testing.T) {
 	}
 }
 
-// TestLicensecheck is AC32: a license detector recognizes every rendered LICENSE.
+// TestLicensecheck checks that a license detector recognizes every rendered LICENSE.
 func TestLicensecheck(t *testing.T) {
 	tests := map[string]struct {
 		name   string
@@ -631,7 +631,7 @@ func TestLicensecheck(t *testing.T) {
 	assertCoversNames(t, covered, "none")
 }
 
-// TestAttribution is the data part of AC33.
+// TestAttribution checks the attribution in data/README.md against the manifest.
 func TestAttribution(t *testing.T) {
 	readme := string(readData(t, "README.md"))
 	m := readManifest(t)

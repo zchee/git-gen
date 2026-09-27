@@ -176,7 +176,7 @@ func TestCompose(t *testing.T) {
 	}
 }
 
-// TestComposeRust is AC12: the RustRover block is gone in either order.
+// TestComposeRust checks that the RustRover block is gone in either order.
 func TestComposeRust(t *testing.T) {
 	tests := map[string]struct {
 		args []string
@@ -204,7 +204,7 @@ func TestComposeRust(t *testing.T) {
 	}
 }
 
-// TestComposePython is AC13: Python loses no line from its top.
+// TestComposePython checks that Python loses no line from its top.
 func TestComposePython(t *testing.T) {
 	c := openCatalog(t, fixtureDir)
 	got, _, err := c.Compose("git-gen", resolve(t, c, "go", "Python"))
@@ -259,8 +259,7 @@ func TestComposeDuplicates(t *testing.T) {
 	}
 }
 
-// TestComposeUnknown is the package part of AC14: an unknown language adds
-// no section.
+// TestComposeUnknown checks that an unknown language adds no section.
 func TestComposeUnknown(t *testing.T) {
 	golden, _, _ := splitGolden(t)
 	c := openCatalog(t, fixtureDir)

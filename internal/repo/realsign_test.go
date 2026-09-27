@@ -26,10 +26,10 @@ import (
 // realSigningEnv switches on TestRealSigning.
 const realSigningEnv = "GIT_GEN_TEST_REAL_SIGNING"
 
-// TestRealSigning is AC34. It is skipped unless GIT_GEN_TEST_REAL_SIGNING=1, because it reads the owner's
-// git configuration, signs three commits with the real signing program and key (which may ask for a
-// passphrase), and verifies them with the git command line, which starts the verification program. It
-// logs no identity, key id or signature.
+// TestRealSigning is the end-to-end signing test. It is skipped unless GIT_GEN_TEST_REAL_SIGNING=1, because
+// it reads the owner's git configuration, signs three commits with the real signing program and key (which
+// may ask for a passphrase), and verifies them with the git command line, which starts the verification
+// program. It logs no identity, key id or signature.
 func TestRealSigning(t *testing.T) {
 	if os.Getenv(realSigningEnv) != "1" {
 		t.Skipf("set %s=1 to sign with the real git configuration", realSigningEnv)

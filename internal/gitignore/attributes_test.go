@@ -138,7 +138,7 @@ func TestAttributes(t *testing.T) {
 	}
 }
 
-// TestAttributesSequence is the package part of AC21: running Rust and then
+// TestAttributesSequence checks that running Rust and then
 // go, twice, gives one header block and one go.sum block.
 func TestAttributesSequence(t *testing.T) {
 	golden := readFile(t, goldenAttributes)

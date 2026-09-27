@@ -42,7 +42,7 @@ var testVars = Vars{
 	Year:         2026,
 }
 
-// githubFiles are the five files of plan 6.3 that Set.Go places under .github/.
+// githubFiles are the five files that Set.Go places under .github/.
 var githubFiles = []string{
 	".github/CODEOWNERS",
 	".github/ISSUE_TEMPLATE/bug_report.yml",
@@ -187,8 +187,8 @@ func TestDir(t *testing.T) {
 	}
 }
 
-// TestRenderWriteSets covers the package part of AC16: the placed files for
-// every combination of Set, and the tree that Write leaves behind.
+// TestRenderWriteSets checks the placed files for every combination of Set,
+// and the tree that Write leaves behind.
 func TestRenderWriteSets(t *testing.T) {
 	t.Parallel()
 
@@ -279,7 +279,7 @@ func TestRenderWriteSets(t *testing.T) {
 }
 
 // TestRenderContent checks each rendered file against its template with the
-// placeholders of plan 6.4 replaced (AC17 for .golangci.yaml).
+// placeholders replaced (the three module paths for .golangci.yaml).
 func TestRenderContent(t *testing.T) {
 	t.Parallel()
 
@@ -658,7 +658,7 @@ func TestRenderErrors(t *testing.T) {
 	}
 }
 
-// TestMissing covers the package part of AC7.
+// TestMissing checks which missing templates Missing reports for each Set.
 func TestMissing(t *testing.T) {
 	t.Parallel()
 
@@ -764,7 +764,7 @@ func TestMissingRelativeDir(t *testing.T) {
 	}
 }
 
-// TestWrite covers the package parts of AC10 and D12.
+// TestWrite checks that Write places only missing files, also into an existing .github/.
 func TestWrite(t *testing.T) {
 	t.Parallel()
 
@@ -916,7 +916,7 @@ func TestWriteRootMissing(t *testing.T) {
 }
 
 // TestSubstituteOverlap pins the behavior for rules whose matches overlap,
-// which the rules of plan 6.4 never produce: the earlier match wins.
+// which the rules of this package never produce: the earlier match wins.
 func TestSubstituteOverlap(t *testing.T) {
 	t.Parallel()
 

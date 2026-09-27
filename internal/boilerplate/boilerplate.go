@@ -42,7 +42,7 @@ type Vars struct {
 
 // Set selects the optional groups of files that [Render] returns.
 type Set struct {
-	Go       bool // .github/ (the 5 files of plan 6.3) and .golangci.yaml
+	Go       bool // .github/ templates and .golangci.yaml
 	Makefile bool
 	Hack     bool // hack/boilerplate/boilerplate.go.txt
 }
@@ -91,7 +91,7 @@ func modulePrefix(v *Vars) string {
 	return "github.com/" + v.Organization + "/" + v.Project
 }
 
-// rules maps a template path to the substitutions of plan 6.4. Rules are per
+// rules maps a template path to the substitutions made in it. Rules are per
 // file: the {{ YEAR }} comment of .golangci.yaml is not a boilerplate.go.txt
 // token and passes through untouched.
 var rules = map[string][]rule{
@@ -185,7 +185,7 @@ func Missing(dir string, set Set) []string {
 }
 
 // Render returns the files to place for set, sorted by path, with the
-// placeholders of plan 6.4 replaced by the values of v.
+// placeholders replaced by the values of v.
 //
 // CODE_OF_CONDUCT.md (from .github/CODE_OF_CONDUCT.md) and README.md are always
 // returned. With set.Go, every regular file under .github/ is returned except
@@ -193,7 +193,7 @@ func Missing(dir string, set Set) []string {
 // are followed and anything else is skipped. Each warning names a required
 // rule that matched nothing and the template it belongs to.
 //
-//nolint:gocritic // hugeParam: contract section 7 fixes Vars and this signature, so v cannot become *Vars.
+//nolint:gocritic // hugeParam: Render runs once per process; Vars stays a value so callers build it inline.
 func Render(dir string, set Set, v Vars) (files []File, warnings []string, err error) {
 	fsys := os.DirFS(dir)
 	add := func(src, dst string) error {

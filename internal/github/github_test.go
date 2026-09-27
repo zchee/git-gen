@@ -39,7 +39,7 @@ import (
 // testToken is a fake token. Tests assert that it never appears in an error.
 const testToken = "test-token-5f0c9a7e21"
 
-// wantSettings is the PATCH body of plan 6.8, field for field.
+// wantSettings is the PATCH body that Apply sends, field for field.
 var wantSettings = map[string]any{
 	"allow_update_branch":    true,
 	"delete_branch_on_merge": true,
@@ -141,7 +141,7 @@ func (rt rewriteHost) RoundTrip(req *http.Request) (*http.Response, error) {
 	return rt.next.RoundTrip(out)
 }
 
-// TestOutcome pins the constant order of contract section 9. Failed must be the zero value, so that a caller that
+// TestOutcome pins the order of the Outcome constants. Failed must be the zero value, so that a caller that
 // ignores the error never reads a failure as success.
 func TestOutcome(t *testing.T) {
 	t.Parallel()

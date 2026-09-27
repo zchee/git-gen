@@ -1,4 +1,4 @@
-# gpg.format, the program keys and user.signingkey are unset: plan 6.5
+# gpg.format, the program keys and user.signingkey are unset: LoadConfig
 # falls back to "gpg" and to the committer "name <email>" as the key.
 [user]
 	name = Fixture User

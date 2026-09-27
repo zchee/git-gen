@@ -51,7 +51,7 @@ func (f signerFunc) Sign(ctx context.Context, message io.Reader) ([]byte, error)
 //
 // Errors from signing, here and from the returned Signer, leave out the gpg status lines ("[GNUPG:] ...")
 // the program wrote to standard error.
-func NewSigner(ctx context.Context, cfg Config) (Signer, error) { //nolint:gocritic // hugeParam: NewSigner runs once per process and contract section 8 fixes Config by value.
+func NewSigner(ctx context.Context, cfg Config) (Signer, error) { //nolint:gocritic // hugeParam: NewSigner runs once per process and takes Config as LoadConfig returns it.
 	p, err := program.New(program.Format(cfg.SigningFormat), cfg.SigningProgram, cfg.SigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("signing program: %w", err)

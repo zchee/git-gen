@@ -127,7 +127,7 @@ func realGoVersion(t *testing.T, env []string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// TestInitModule covers AC18 with the real go command.
+// TestInitModule checks the module path, the go line and go.sum with the real go command.
 func TestInitModule(t *testing.T) {
 	t.Parallel()
 
