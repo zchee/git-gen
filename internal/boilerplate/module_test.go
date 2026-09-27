@@ -262,9 +262,9 @@ func TestInitModuleGoVersion(t *testing.T) {
 		"success: release candidate":        {goversion: "go1.28rc1", wantVersion: "1.28"},
 		"success: devel prefix":             {goversion: "devel go1.28-abcdef", wantVersion: "1.28"},
 		"success: devel suffix with a date": {goversion: "go1.28-devel_fe515272d0 Fri Sep 25 18:46:22 2026 +0900 X:loopvar", wantVersion: "1.28"},
-		"warning: no minor version":         {goversion: "go1"},
-		"warning: empty output":             {goversion: ""},
-		"warning: not a version":            {goversion: "gopher"},
+		"success: no minor version warns":   {goversion: "go1"},
+		"success: empty output warns":       {goversion: ""},
+		"success: not a version warns":      {goversion: "gopher"},
 	}
 
 	self, err := os.Executable()
@@ -328,11 +328,11 @@ func TestInitModuleFailures(t *testing.T) {
 		wantErrIs   error
 		wantGoMod   bool
 	}{
-		"warning: go command not found": {
+		"success: a missing go command warns": {
 			lookPath:    func(file string) (string, error) { return "", &exec.Error{Name: file, Err: exec.ErrNotFound} },
 			wantWarning: "executable file not found",
 		},
-		"warning: go env fails": {
+		"success: a failing go env warns": {
 			lookPath:    fake,
 			fail:        "env",
 			wantWarning: "failed on purpose",

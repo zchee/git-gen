@@ -193,9 +193,20 @@ func Missing(dir string, set Set) []string {
 // are followed and anything else is skipped. Each warning names a required
 // rule that matched nothing and the template it belongs to.
 //
+// Every template is read through an [os.Root] opened on dir: a symbolic link
+// is followed only while its target stays inside dir, and a link that leaves
+// dir is an error that names the template. dir itself may be reached through
+// a link.
+//
 //nolint:gocritic // hugeParam: Render runs once per process; Vars stays a value so callers build it inline.
 func Render(dir string, set Set, v Vars) (files []File, warnings []string, err error) {
-	fsys := os.DirFS(dir)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("boilerplate: %w", err)
+	}
+	defer root.Close()
+
+	fsys := root.FS()
 	add := func(src, dst string) error {
 		file, warns, err := load(fsys, dir, src, dst, &v)
 		if err != nil {

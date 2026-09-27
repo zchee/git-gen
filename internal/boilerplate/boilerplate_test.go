@@ -417,7 +417,7 @@ func TestRenderRules(t *testing.T) {
 		want      string
 		wantRules []string
 	}{
-		"warning: golangci-lint template without the module-path placeholder": {
+		"success: golangci-lint template without the module-path placeholder warns": {
 			template: "go/.golangci.yaml",
 			content:  variant,
 			vars:     testVars,
@@ -428,7 +428,7 @@ func TestRenderRules(t *testing.T) {
 			).Replace(variant),
 			wantRules: []string{"gofumpt module-path: github.com/"},
 		},
-		"warning: golangci-lint template without any placeholder": {
+		"success: golangci-lint template without any placeholder warns": {
 			template: "go/.golangci.yaml",
 			content:  "version: \"2\"\n# module-path: github.com/\n",
 			vars:     testVars,
@@ -454,7 +454,7 @@ func TestRenderRules(t *testing.T) {
 			output:   ".golangci.yaml",
 			want:     "- prefix(github.com/acme/widget)\r\nmodule-path: github.com/acme/widget\r\nlocal-prefixes:\r\n  - github.com/acme/widget\r\n",
 		},
-		"warning: bug report without PKG": {
+		"success: bug report without PKG warns": {
 			template:  ".github/ISSUE_TEMPLATE/bug_report.yml",
 			content:   "name: Bug Report\ntitle: \"pkg name: \"\nlabel: PKGS\n",
 			vars:      testVars,
@@ -462,7 +462,7 @@ func TestRenderRules(t *testing.T) {
 			want:      "name: Bug Report\ntitle: \"pkg name: \"\nlabel: PKGS\n",
 			wantRules: []string{"PKG"},
 		},
-		"warning: code of conduct without the contact placeholder": {
+		"success: code of conduct without the contact placeholder warns": {
 			template:  ".github/CODE_OF_CONDUCT.md",
 			content:   "Report to the maintainers.\n",
 			vars:      testVars,
@@ -470,7 +470,7 @@ func TestRenderRules(t *testing.T) {
 			want:      "Report to the maintainers.\n",
 			wantRules: []string{"[INSERT CONTACT METHOD]"},
 		},
-		"warning: hack header without AUTHOR and YEAR warns for neither LICENSE_IDENTIFIER": {
+		"success: hack header without AUTHOR and YEAR warns for both, not for LICENSE_IDENTIFIER": {
 			template:  "go/boilerplate.go.txt",
 			content:   "// Copyright THE AUTHORS, YEARS AGO.\n",
 			vars:      testVars,
@@ -569,6 +569,139 @@ func TestRenderModesAndLinks(t *testing.T) {
 	}
 }
 
+// TestRenderLinkConfinement checks that a template link is followed only while its target stays inside
+// the boilerplate directory, so that no file outside it is copied into a repository and committed. The
+// directory itself may be reached through a link, as ~/.config often is.
+func TestRenderLinkConfinement(t *testing.T) {
+	t.Parallel()
+
+	const secret = "a line from outside the boilerplate directory\n"
+	tests := map[string]struct {
+		set Set
+		// link returns the template path, slash-separated, that is replaced with a link to target, and the
+		// value of that link.
+		link func(target string) (name, value string)
+		// wantErrPath is the template that the error must name; empty means that Render succeeds.
+		wantErrPath string
+	}{
+		"error: a .github template linked to an absolute path outside": {
+			set:         Set{Go: true},
+			link:        func(target string) (string, string) { return ".github/PULL_REQUEST_TEMPLATE.md", target },
+			wantErrPath: ".github/PULL_REQUEST_TEMPLATE.md",
+		},
+		"error: the code of conduct linked to a relative path outside": {
+			set: Set{},
+			link: func(string) (string, string) {
+				return ".github/CODE_OF_CONDUCT.md", filepath.Join("..", "..", "outside", "secret.txt")
+			},
+			wantErrPath: ".github/CODE_OF_CONDUCT.md",
+		},
+		"error: the Makefile linked outside": {
+			set:         Set{Makefile: true},
+			link:        func(target string) (string, string) { return "go/Makefile", target },
+			wantErrPath: "go/Makefile",
+		},
+		"success: a link inside the directory is followed": {
+			set: Set{Go: true},
+			link: func(string) (string, string) {
+				return ".github/renovate.json5", "dependabot.yaml"
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := fixture(t)
+			target := filepath.Join(filepath.Dir(dir), "outside", "secret.txt")
+			writeFile(t, filepath.Dir(target), filepath.Base(target), secret)
+			linkName, value := tt.link(target)
+			linkPath := filepath.Join(dir, filepath.FromSlash(linkName))
+			if err := os.Remove(linkPath); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(value, linkPath); err != nil {
+				t.Fatal(err)
+			}
+
+			files, _, err := Render(dir, tt.set, testVars)
+			if tt.wantErrPath == "" {
+				if err != nil {
+					t.Fatalf("Render() error = %v", err)
+				}
+				want, err := os.ReadFile(filepath.Join(dir, ".github", "dependabot.yaml"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := find(t, files, linkName).Content; string(got) != string(want) {
+					t.Errorf("%s content = %q, want the content of its target %q", linkName, got, want)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("Render() = %q, want an error for the link that leaves the directory", paths(files))
+			}
+			if want := filepath.Join(dir, filepath.FromSlash(tt.wantErrPath)); !strings.Contains(err.Error(), want) {
+				t.Errorf("Render() error = %q, want it to name %s", err, want)
+			}
+			if files != nil {
+				t.Errorf("Render() files = %q, want nil with the error", paths(files))
+			}
+			for _, f := range files {
+				if strings.Contains(string(f.Content), secret) {
+					t.Errorf("%s carries the content of a file outside the directory", f.Path)
+				}
+			}
+		})
+	}
+}
+
+// TestRenderLinkedDir checks that the boilerplate directory itself may be a link with an absolute target.
+func TestRenderLinkedDir(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		set  Set
+		want []string
+	}{
+		"success: Go templates through a linked directory": {
+			set:  Set{Go: true, Makefile: true, Hack: true},
+			want: slices.Concat([]string{".golangci.yaml", "CODE_OF_CONDUCT.md", "Makefile", "README.md", "hack/boilerplate/boilerplate.go.txt"}, githubFiles),
+		},
+		"success: the code of conduct alone through a linked directory": {
+			set:  Set{},
+			want: []string{"CODE_OF_CONDUCT.md", "README.md"},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			target := fixture(t)
+			if !filepath.IsAbs(target) {
+				t.Fatalf("fixture %q is not absolute", target)
+			}
+			config := filepath.Join(t.TempDir(), ".config")
+			if err := os.Symlink(filepath.Dir(target), config); err != nil {
+				t.Fatal(err)
+			}
+
+			files, warnings, err := Render(filepath.Join(config, "boilerplate"), tt.set, testVars)
+			if err != nil {
+				t.Fatalf("Render() error = %v", err)
+			}
+			if len(warnings) != 0 {
+				t.Errorf("Render() warnings = %q, want none", warnings)
+			}
+			if diff := gocmp.Diff(slices.Sorted(slices.Values(tt.want)), paths(files)); diff != "" {
+				t.Errorf("Render() paths mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestRenderErrors(t *testing.T) {
 	t.Parallel()
 
@@ -583,6 +716,17 @@ func TestRenderErrors(t *testing.T) {
 				t.Helper()
 
 				if err := os.Remove(filepath.Join(dir, ".github", "CODE_OF_CONDUCT.md")); err != nil {
+					t.Fatal(err)
+				}
+			},
+			notExist: true,
+		},
+		"error: the boilerplate directory does not exist": {
+			set: Set{},
+			prepare: func(t *testing.T, dir string) {
+				t.Helper()
+
+				if err := os.RemoveAll(dir); err != nil {
 					t.Fatal(err)
 				}
 			},
