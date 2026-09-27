@@ -193,7 +193,7 @@ func Missing(dir string, set Set) []string {
 // are followed and anything else is skipped. Each warning names a required
 // rule that matched nothing and the template it belongs to.
 //
-//nolint:gocritic // hugeParam: section 7 of the contract fixes this signature.
+//nolint:gocritic // hugeParam: contract section 7 fixes Vars and this signature, so v cannot become *Vars.
 func Render(dir string, set Set, v Vars) (files []File, warnings []string, err error) {
 	fsys := os.DirFS(dir)
 	add := func(src, dst string) error {
@@ -213,8 +213,14 @@ func Render(dir string, set Set, v Vars) (files []File, warnings []string, err e
 	files = append(files, File{Path: "README.md", Content: fmt.Appendf(nil, "# %s\n", v.Project), Mode: 0o644})
 
 	if set.Go {
-		if err := walkGitHub(fsys, dir, add); err != nil {
+		srcs, err := githubTemplates(fsys, dir)
+		if err != nil {
 			return nil, nil, err
+		}
+		for _, src := range srcs {
+			if err := add(src, src); err != nil {
+				return nil, nil, err
+			}
 		}
 		if err := add(golangci, ".golangci.yaml"); err != nil {
 			return nil, nil, err
@@ -236,29 +242,35 @@ func Render(dir string, set Set, v Vars) (files []File, warnings []string, err e
 	return files, warnings, nil
 }
 
-// walkGitHub calls add for every regular file under .github/ except
+// githubTemplates returns the regular files under .github/ except
 // .github/CODE_OF_CONDUCT.md, which is placed at the top level, and any
 // .DS_Store. Symbolic links are followed; anything that is not a regular file
-// once they are is skipped.
-func walkGitHub(fsys fs.FS, dir string, add func(src, dst string) error) error {
-	//nolint:wrapcheck // WalkDir returns only the errors of the callback, which wraps them.
-	return fs.WalkDir(fsys, githubDir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("boilerplate: walk %s: %w", filepath.Join(dir, filepath.FromSlash(p)), err)
-		}
-		if d.IsDir() || p == codeOfConduct || path.Base(p) == ".DS_Store" {
-			return nil
-		}
-		info, err := fs.Stat(fsys, p)
-		if err != nil {
-			return fmt.Errorf("boilerplate: walk %s: %w", filepath.Join(dir, filepath.FromSlash(p)), err)
-		}
-		if !info.Mode().IsRegular() {
-			return nil
+// once they are is left out, and a dangling link is an error.
+func githubTemplates(fsys fs.FS, dir string) ([]string, error) {
+	var entries []string
+	err := fs.WalkDir(fsys, githubDir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && p != codeOfConduct && path.Base(p) != ".DS_Store" {
+			entries = append(entries, p)
 		}
 
-		return add(p, p)
+		return err
 	})
+	if err != nil {
+		return nil, fmt.Errorf("boilerplate: walk %s: %w", filepath.Join(dir, githubDir), err)
+	}
+
+	srcs := entries[:0]
+	for _, p := range entries {
+		info, err := fs.Stat(fsys, p)
+		if err != nil {
+			return nil, fmt.Errorf("boilerplate: template %s: %w", filepath.Join(dir, filepath.FromSlash(p)), err)
+		}
+		if info.Mode().IsRegular() {
+			srcs = append(srcs, p)
+		}
+	}
+
+	return srcs, nil
 }
 
 // load reads the template src, applies its rules and returns it as dst.
