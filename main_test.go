@@ -449,6 +449,11 @@ func TestResolveNames(t *testing.T) {
 			wd:        "/src/acme/rocket",
 			wantUsage: `invalid PROJECT_NAME "..": want letters, digits, '.', '-' and '_', and not "." or ".."`,
 		},
+		"error: PROJECT_NAME is .": {
+			env:       map[string]string{"PROJECT_NAME": "."},
+			wd:        "/src/acme/rocket",
+			wantUsage: `invalid PROJECT_NAME ".": want letters, digits, '.', '-' and '_', and not "." or ".."`,
+		},
 		"error: AUTHOR with a control character": {
 			env:       map[string]string{"AUTHOR": "The Team\n* filter=lfs"},
 			wd:        "/src/acme/rocket",
