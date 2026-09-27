@@ -21,6 +21,7 @@
 package repo
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -41,7 +42,8 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
-// ErrUnsigned is returned by Repository.Commit when the commit it wrote carries no signature.
+// ErrUnsigned is returned by Repository.Commit when the signer returns an empty signature, or when the
+// commit it wrote carries no signature.
 var ErrUnsigned = errors.New("commit carries no signature")
 
 // Options configures Open.
@@ -77,6 +79,49 @@ type Repository struct {
 	cfg    Config
 	signer Signer
 	now    func() time.Time
+}
+
+// CheckDir checks the .git of the working tree dir, and must pass before LoadConfig reads dir's
+// configuration or Open opens dir. A dir without .git passes. Otherwise .git must be a directory: a .git
+// file points to a linked worktree or a submodule, which are not supported. .git and .git/config must be
+// owned by the user running the process, as git requires through safe.directory, so that another user's
+// repository configuration is never read. Where files have no owner, only the directory is checked.
+// CheckDir writes nothing.
+func CheckDir(dir string) error {
+	return checkDir(dir, os.Getuid(), fileOwner)
+}
+
+// checkDir is CheckDir for the user id uid, with owner looking up the user id that owns a file.
+func checkDir(dir string, uid int, owner func(fs.FileInfo) (int, bool)) error {
+	gitDir := filepath.Join(dir, git.GitDirName)
+	fi, err := os.Lstat(gitDir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR):
+		return nil
+	case err != nil:
+		return fmt.Errorf("look for %s: %w", gitDir, err)
+	case fi.Mode().IsRegular():
+		return fmt.Errorf("%s is a file, not a directory: linked worktrees and submodules are not supported", gitDir)
+	case !fi.IsDir():
+		return fmt.Errorf("%s is not a directory", gitDir)
+	}
+	if got, ok := owner(fi); ok && got != uid {
+		return fmt.Errorf("%s is owned by uid %d, not by the current user (uid %d)", gitDir, got, uid)
+	}
+
+	// Stat follows a link, so the owner checked is the owner of the file LoadConfig reads.
+	configPath := filepath.Join(gitDir, "config")
+	fi, err = os.Stat(configPath)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil:
+		return fmt.Errorf("look for %s: %w", configPath, err)
+	}
+	if got, ok := owner(fi); ok && got != uid {
+		return fmt.Errorf("%s is owned by uid %d, not by the current user (uid %d)", configPath, got, uid)
+	}
+	return nil
 }
 
 // Open opens the repository in opts.Dir, or initializes one there when opts.Dir has no .git. existed
@@ -196,13 +241,15 @@ func (r *Repository) AddRemote(name, url string) (effectiveURL string, added boo
 
 // Commit stages the paths of step and commits them, signed, with step.Message.
 //
-// A path that does not exist is left out. Unless step.Force is set, a path that the working tree's
-// .gitignore files ignore is put in Skipped instead of being staged. A commit is made only when the index
+// A path that does not exist is left out. Unless step.Force is set, a path that has no index entry and
+// that the working tree's .gitignore files ignore is put in Skipped instead of being staged; a path that
+// has an index entry is staged, as git add does. A commit is made only when the index
 // holds at least one added file, as `git status --porcelain | grep '^A'` would show; otherwise Hash is
 // empty and the error is nil. Files staged earlier by someone else go into the same commit.
 //
-// The message ends with one newline, as with git commit -m. The signing program runs with ctx. The commit
-// is read back, and ErrUnsigned is returned when its signature is empty.
+// The message ends with one newline, as with git commit -m. The signing program runs with ctx. An empty
+// signature returns ErrUnsigned and no commit is written. The commit is also read back, and ErrUnsigned is
+// returned when its signature is empty.
 func (r *Repository) Commit(ctx context.Context, step CommitStep) (CommitResult, error) {
 	if r.signer == nil {
 		return CommitResult{}, errors.New("commit: no signer configured")
@@ -219,6 +266,10 @@ func (r *Repository) Commit(ctx context.Context, step CommitStep) (CommitResult,
 	if err != nil {
 		return CommitResult{}, fmt.Errorf("open worktree: %w", err)
 	}
+	idx, err := r.repo.Storer.Index()
+	if err != nil {
+		return CommitResult{}, fmt.Errorf("read index: %w", err)
+	}
 
 	var res CommitResult
 	ignore := newIgnoreMatcher(r.dir)
@@ -233,7 +284,8 @@ func (r *Repository) Commit(ctx context.Context, step CommitStep) (CommitResult,
 		if err != nil {
 			return res, fmt.Errorf("stage %s: %w", p, err)
 		}
-		if !step.Force {
+		// Ignore rules apply to untracked paths only: git add stages a path that has an index entry.
+		if _, entryErr := idx.Entry(p); !step.Force && entryErr != nil {
 			ignored, err := ignore.ignored(p, fi.IsDir())
 			if err != nil {
 				return res, fmt.Errorf("stage %s: %w", p, err)
@@ -259,8 +311,13 @@ func (r *Repository) Commit(ctx context.Context, step CommitStep) (CommitResult,
 		Author:    &object.Signature{Name: r.cfg.Author.Name, Email: r.cfg.Author.Email, When: when},
 		Committer: &object.Signature{Name: r.cfg.Committer.Name, Email: r.cfg.Committer.Email, When: when},
 		// go-git v6.0.0-alpha.5 calls Sign with context.TODO(); the caller's ctx is bound here instead.
+		// An error from Sign makes go-git return before it writes the commit.
 		Signer: signerFunc(func(_ context.Context, message io.Reader) ([]byte, error) {
-			return sign(ctx, r.signer, message)
+			sig, err := sign(ctx, r.signer, r.cfg.SigningKey, message)
+			if err == nil && len(bytes.TrimSpace(sig)) == 0 {
+				return nil, ErrUnsigned
+			}
+			return sig, err
 		}),
 	})
 	if err != nil {

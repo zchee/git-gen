@@ -17,7 +17,9 @@ package repo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -418,6 +420,64 @@ func TestCommit(t *testing.T) {
 	}
 }
 
+// TestCommitTrackedIgnored checks that the ignore rules apply to untracked paths only, as with git add: a
+// committed file that a new .gitignore ignores is still staged.
+func TestCommitTrackedIgnored(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		step        CommitStep
+		wantStaged  []string
+		wantSkipped []string
+		// wantStatus is `git status --porcelain` after the step, sorted.
+		wantStatus []string
+	}{
+		"success: a tracked path is staged although .gitignore now ignores it": {
+			step:       CommitStep{Message: "Initial commit", Paths: []string{".gitignore", "CODE_OF_CONDUCT.md"}},
+			wantStaged: []string{".gitignore", "CODE_OF_CONDUCT.md"},
+			wantStatus: []string{"?? Makefile", "?? README.md", "?? go.mod", "?? go.sum", "M  .gitignore", "M  CODE_OF_CONDUCT.md"},
+		},
+		"success: an untracked path that .gitignore ignores is still skipped": {
+			step:        CommitStep{Message: "github: add .github directory", Paths: []string{".github/PULL_REQUEST_TEMPLATE.md"}},
+			wantSkipped: []string{".github/PULL_REQUEST_TEMPLATE.md"},
+			wantStatus:  []string{" M .gitignore", " M CODE_OF_CONDUCT.md", "?? Makefile", "?? README.md", "?? go.mod", "?? go.sum"},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r, dir := openTestRepo(t, generatedFiles(goGitignore))
+			if res, err := r.Commit(t.Context(), planSteps[0]); err != nil || res.Hash == "" {
+				t.Fatalf("first Commit() = %+v, %v, want a commit", res, err)
+			}
+			writeFiles(t, dir, map[string]string{
+				".gitignore":         allowlistGitignore,
+				"CODE_OF_CONDUCT.md": "# Contributor Covenant Code of Conduct, edited\n",
+			})
+
+			res, err := r.Commit(t.Context(), tt.step)
+			if err != nil {
+				t.Fatalf("Commit() error = %v", err)
+			}
+			if diff := gocmp.Diff(tt.wantStaged, res.Staged, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("Staged mismatch (-want +got):\n%s", diff)
+			}
+			if diff := gocmp.Diff(tt.wantSkipped, res.Skipped, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("Skipped mismatch (-want +got):\n%s", diff)
+			}
+			var status []string
+			for line := range strings.SplitSeq(strings.TrimRight(gitCLI(t, dir, "status", "--porcelain=v1"), "\n"), "\n") {
+				status = append(status, line)
+			}
+			slices.Sort(status)
+			if diff := gocmp.Diff(tt.wantStatus, status); diff != "" {
+				t.Errorf("git status mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 // sleepingStub writes a signing program that records its start in marker and then sleeps far longer
 // than any test waits.
 func sleepingStub(t *testing.T, marker string) string {
@@ -501,31 +561,31 @@ func TestCommitContext(t *testing.T) {
 	}
 }
 
-// TestCommitErrors covers the failures of Commit, including the read-back check for an empty signature.
+// TestCommitErrors covers the failures of Commit. None of them may leave a commit behind.
 func TestCommitErrors(t *testing.T) {
 	t.Parallel()
 
 	emptySigner := signerFunc(func(context.Context, io.Reader) ([]byte, error) { return nil, nil })
 	tests := map[string]struct {
-		signer    func(t *testing.T) Signer
-		cfg       Config
-		step      CommitStep
+		signer func(t *testing.T) Signer
+		cfg    Config
+		step   CommitStep
+		// prepare changes the repository after Open; nil changes nothing.
+		prepare   func(t *testing.T, dir string)
 		wantErr   string
 		wantIs    error
-		wantHash  bool
 		wantNoLog bool // the error must carry no gpg status line
 	}{
 		"error: an empty signature is ErrUnsigned": {
-			signer:   func(*testing.T) Signer { return emptySigner },
-			cfg:      testConfig,
-			step:     CommitStep{Message: "Initial commit", Paths: []string{"LICENSE"}},
-			wantIs:   ErrUnsigned,
-			wantHash: true,
+			signer: func(*testing.T) Signer { return emptySigner },
+			cfg:    testConfig,
+			step:   CommitStep{Message: "Initial commit", Paths: []string{"LICENSE"}},
+			wantIs: ErrUnsigned,
 		},
-		"error: a failing program leaks no status line": {
+		"error: a failing program leaks no status line and no key": {
 			signer: func(t *testing.T) Signer {
 				t.Helper()
-				s, err := program.New(program.FormatOpenPGP, testdataPath(t, "signer", "fail.sh"), "KEY")
+				s, err := program.New(program.FormatOpenPGP, testdataPath(t, "signer", "fail.sh"), testConfig.SigningKey)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -566,6 +626,16 @@ func TestCommitErrors(t *testing.T) {
 			step:    CommitStep{Message: "Initial commit", Paths: []string{"./LICENSE"}},
 			wantErr: "not a clean relative path",
 		},
+		"error: a corrupt index": {
+			signer: func(*testing.T) Signer { return emptySigner },
+			cfg:    testConfig,
+			step:   CommitStep{Message: "Initial commit", Paths: []string{"LICENSE"}},
+			prepare: func(t *testing.T, dir string) {
+				t.Helper()
+				writeFiles(t, dir, map[string]string{".git/index": "not an index\n"})
+			},
+			wantErr: "read index",
+		},
 		"error: an unreadable .gitignore": {
 			signer:  func(*testing.T) Signer { return emptySigner },
 			cfg:     testConfig,
@@ -586,6 +656,9 @@ func TestCommitErrors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if tt.prepare != nil {
+				tt.prepare(t, dir)
+			}
 			res, err := r.Commit(t.Context(), tt.step)
 			if err == nil {
 				t.Fatal("Commit() error = nil, want an error")
@@ -598,12 +671,164 @@ func TestCommitErrors(t *testing.T) {
 			}
 			if tt.wantNoLog {
 				assertNoStatusLines(t, err)
+				assertNoKey(t, err, tt.cfg.SigningKey)
 			}
-			if (res.Hash != "") != tt.wantHash {
-				t.Errorf("Commit() Hash = %q, want a hash: %t", res.Hash, tt.wantHash)
+			if res.Hash != "" {
+				t.Errorf("Commit() Hash = %q, want none", res.Hash)
+			}
+			if got := history(t, dir); len(got) != 0 {
+				t.Errorf("history has %d commits after the error, want 0", len(got))
 			}
 		})
 	}
+}
+
+// TestCheckDir checks the .git of a working tree before its configuration is read. The owner is injected,
+// because a test cannot create a file that another user owns; owner_unix_test.go covers the real lookup.
+func TestCheckDir(t *testing.T) {
+	t.Parallel()
+
+	const uid = 1000
+	owners := func(gitDir, config int) func(fs.FileInfo) (int, bool) {
+		return func(fi fs.FileInfo) (int, bool) {
+			if fi.Name() == "config" {
+				return config, true
+			}
+			return gitDir, true
+		}
+	}
+	repoDir := func(t *testing.T, dir string) string {
+		t.Helper()
+		writeFiles(t, dir, map[string]string{".git/config": "[core]\n\tbare = false\n"})
+		return dir
+	}
+	tests := map[string]struct {
+		// setup prepares the temporary directory root and returns the working tree to check.
+		setup func(t *testing.T, root string) string
+		owner func(fs.FileInfo) (int, bool)
+		// wantErr is the start of the message, with {dir} standing for the working tree; empty means nil.
+		wantErr string
+	}{
+		"success: no .git": {
+			setup: func(_ *testing.T, root string) string { return root },
+			owner: owners(uid+1, uid+1),
+		},
+		"success: .git and .git/config of the current user": {
+			setup: repoDir,
+			owner: owners(uid, uid),
+		},
+		"success: a .git directory without config": {
+			setup: func(t *testing.T, dir string) string {
+				t.Helper()
+				if err := os.Mkdir(filepath.Join(dir, ".git"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				return dir
+			},
+			owner: owners(uid, uid+1),
+		},
+		"success: files without an owner on this system": {
+			setup: repoDir,
+			owner: func(fs.FileInfo) (int, bool) { return 0, false },
+		},
+		"error: a .git file": {
+			setup: func(t *testing.T, dir string) string {
+				t.Helper()
+				writeFiles(t, dir, map[string]string{".git": "gitdir: ../other/.git\n"})
+				return dir
+			},
+			owner:   owners(uid, uid),
+			wantErr: "{dir}/.git is a file, not a directory: linked worktrees and submodules are not supported",
+		},
+		"error: a .git link to a directory": {
+			setup: func(t *testing.T, dir string) string {
+				t.Helper()
+				target := repoDir(t, t.TempDir())
+				if err := os.Symlink(filepath.Join(target, ".git"), filepath.Join(dir, ".git")); err != nil {
+					t.Fatal(err)
+				}
+				return dir
+			},
+			owner:   owners(uid, uid),
+			wantErr: "{dir}/.git is not a directory",
+		},
+		"error: .git of another user": {
+			setup:   repoDir,
+			owner:   owners(uid+1, uid),
+			wantErr: "{dir}/.git is owned by uid 1001, not by the current user (uid 1000)",
+		},
+		"error: .git/config of another user": {
+			setup:   repoDir,
+			owner:   owners(uid, uid+1),
+			wantErr: "{dir}/.git/config is owned by uid 1001, not by the current user (uid 1000)",
+		},
+		"error: a .git the system cannot look up": {
+			setup: func(_ *testing.T, root string) string {
+				return filepath.Join(root, strings.Repeat("n", 300)) // longer than any file name may be
+			},
+			owner:   owners(uid, uid),
+			wantErr: "look for {dir}/.git: ",
+		},
+		"error: a .git/config that links to itself": {
+			setup: func(t *testing.T, dir string) string {
+				t.Helper()
+				if err := os.Mkdir(filepath.Join(dir, ".git"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("config", filepath.Join(dir, ".git", "config")); err != nil {
+					t.Fatal(err)
+				}
+				return dir
+			},
+			owner:   owners(uid, uid),
+			wantErr: "look for {dir}/.git/config: ",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			dir := tt.setup(t, root)
+			before := dirSnapshot(t, root)
+
+			err := checkDir(dir, uid, tt.owner)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("checkDir() error = %v", err)
+				}
+			} else {
+				want := strings.ReplaceAll(filepath.FromSlash(tt.wantErr), "{dir}", dir)
+				if err == nil || !strings.HasPrefix(err.Error(), want) {
+					t.Fatalf("checkDir() error = %v, want one starting with %q", err, want)
+				}
+			}
+			if diff := gocmp.Diff(before, dirSnapshot(t, root)); diff != "" {
+				t.Errorf("checkDir() changed the working tree (-before +after):\n%s", diff)
+			}
+		})
+	}
+}
+
+// dirSnapshot lists every path under dir with its size and mode, without following links.
+func dirSnapshot(t *testing.T, dir string) []string {
+	t.Helper()
+	var entries []string
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		fi, err := d.Info()
+		if err != nil {
+			return err
+		}
+		entries = append(entries, fmt.Sprintf("%s %s %d", p, fi.Mode(), fi.Size()))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return entries
 }
 
 // TestOpen checks the initial branch and core.ignorecase of a new repository.

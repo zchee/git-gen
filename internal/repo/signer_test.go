@@ -42,6 +42,15 @@ func TestNewSigner(t *testing.T) {
 			cfg:     func(t *testing.T) Config { t.Helper(); return stubConfig(t, "fail.sh") },
 			wantErr: "test signature",
 		},
+		"error: the key fail.sh quotes is replaced in the error": {
+			cfg: func(t *testing.T) Config {
+				t.Helper()
+				cfg := stubConfig(t, "fail.sh")
+				cfg.SigningKey = "0x0123FEEDFACE4567"
+				return cfg
+			},
+			wantErr: `gpg: skipped "<user.signingkey>": No secret key; gpg: signing failed: No secret key`,
+		},
 		"error: empty.sh prints no signature": {
 			cfg:     func(t *testing.T) Config { t.Helper(); return stubConfig(t, "empty.sh") },
 			wantErr: "empty signature",
@@ -78,7 +87,8 @@ func TestNewSigner(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			s, err := NewSigner(t.Context(), tt.cfg(t))
+			cfg := tt.cfg(t)
+			s, err := NewSigner(t.Context(), cfg)
 			if tt.wantErr != "" || tt.wantIs != nil {
 				if err == nil {
 					t.Fatal("NewSigner() error = nil, want an error")
@@ -93,6 +103,7 @@ func TestNewSigner(t *testing.T) {
 					t.Errorf("NewSigner() error = %v, want errors.Is(%v)", err, tt.wantIs)
 				}
 				assertNoStatusLines(t, err)
+				assertNoKey(t, err, cfg.SigningKey)
 				return
 			}
 			if err != nil {
@@ -118,11 +129,20 @@ func assertNoStatusLines(t *testing.T, err error) {
 	}
 }
 
+// assertNoKey fails when the error text carries the signing key.
+func assertNoKey(t *testing.T, err error, key string) {
+	t.Helper()
+	if msg := err.Error(); key != "" && strings.Contains(msg, key) {
+		t.Errorf("error text carries the signing key %q: %q", key, msg)
+	}
+}
+
 func TestRedact(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
 		in   string
+		key  string
 		want string
 	}{
 		"success: a status line joined to the message is cut at its prefix": {
@@ -141,12 +161,26 @@ func TestRedact(t *testing.T) {
 			in:   "[GNUPG:] NEWSIG\n[GNUPG:] SIG_CREATED D 1\n",
 			want: "",
 		},
+		"success: every occurrence of the key is replaced": {
+			in:   "prog: exit status 2: [GNUPG:] INV_SGNR 9 0xDEADBEEF\ngpg: skipped \"0xDEADBEEF\": No secret key\ngpg: 0xDEADBEEF: signing failed\n",
+			key:  "0xDEADBEEF",
+			want: "prog: exit status 2; gpg: skipped \"<user.signingkey>\": No secret key; gpg: <user.signingkey>: signing failed",
+		},
+		"success: a key with spaces and angle brackets is replaced": {
+			in:   "gpg: skipped \"Test User <test@example.com>\": No secret key\n",
+			key:  "Test User <test@example.com>",
+			want: "gpg: skipped \"<user.signingkey>\": No secret key",
+		},
+		"success: an empty key replaces nothing": {
+			in:   "gpg: signing failed: No secret key\n",
+			want: "gpg: signing failed: No secret key",
+		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			err := redact(t.Context(), errors.New(tt.in))
+			err := redact(t.Context(), errors.New(tt.in), tt.key)
 			if diff := gocmp.Diff(tt.want, err.Error()); diff != "" {
 				t.Errorf("redact() mismatch (-want +got):\n%s", diff)
 			}
@@ -162,7 +196,7 @@ func TestRedactKeepsContextError(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	err := redact(ctx, errors.New("prog: [GNUPG:] KEY_CONSIDERED ABCDEF 0"))
+	err := redact(ctx, errors.New("prog: [GNUPG:] KEY_CONSIDERED ABCDEF 0"), "")
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("redact() = %v, want errors.Is(context.Canceled)", err)
 	}

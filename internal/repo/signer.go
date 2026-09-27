@@ -31,6 +31,9 @@ const signCheckPayload = "git-gen signing check\n"
 // key ids and fingerprints.
 const statusPrefix = "[GNUPG:]"
 
+// keyPlaceholder stands for the signing key in the text of a signing error.
+const keyPlaceholder = "<user.signingkey>"
+
 // Signer signs the encoded form of a git object and returns the signature.
 type Signer interface {
 	Sign(ctx context.Context, message io.Reader) ([]byte, error)
@@ -50,14 +53,15 @@ func (f signerFunc) Sign(ctx context.Context, message io.Reader) ([]byte, error)
 // written.
 //
 // Errors from signing, here and from the returned Signer, leave out the gpg status lines ("[GNUPG:] ...")
-// the program wrote to standard error.
+// the program wrote to standard error and replace every occurrence of cfg.SigningKey with
+// "<user.signingkey>"; the other lines of its standard error are kept.
 func NewSigner(ctx context.Context, cfg Config) (Signer, error) { //nolint:gocritic // hugeParam: NewSigner runs once per process and takes Config as LoadConfig returns it.
 	p, err := program.New(program.Format(cfg.SigningFormat), cfg.SigningProgram, cfg.SigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("signing program: %w", err)
 	}
 	s := signerFunc(func(ctx context.Context, message io.Reader) ([]byte, error) {
-		return sign(ctx, p, message)
+		return sign(ctx, p, cfg.SigningKey, message)
 	})
 
 	sig, err := s.Sign(ctx, strings.NewReader(signCheckPayload))
@@ -70,17 +74,18 @@ func NewSigner(ctx context.Context, cfg Config) (Signer, error) { //nolint:gocri
 	return s, nil
 }
 
-// sign runs s with ctx and removes the gpg status lines from its error.
-func sign(ctx context.Context, s Signer, message io.Reader) ([]byte, error) {
+// sign runs s with ctx and removes the gpg status lines and the signing key from its error.
+func sign(ctx context.Context, s Signer, key string, message io.Reader) ([]byte, error) {
 	sig, err := s.Sign(ctx, message)
 	if err != nil {
-		return nil, redact(ctx, err)
+		return nil, redact(ctx, err, key)
 	}
 	return sig, nil
 }
 
-// signError is a signing failure whose text leaves out the gpg status lines. It unwraps only to the
-// context's error, so that no caller can reach the original text through errors.Unwrap.
+// signError is a signing failure whose text leaves out the gpg status lines and the signing key. It
+// unwraps only to the context's error, so that no caller can reach the original text through
+// errors.Unwrap.
 type signError struct {
 	text  string
 	cause error
@@ -92,9 +97,11 @@ func (e *signError) Error() string { return e.text }
 // Unwrap returns the context's error, or nil when the context had not ended.
 func (e *signError) Unwrap() error { return e.cause }
 
-// redact drops everything from a status prefix to the end of its line. The program signer joins the
-// program's standard error to its own message with ": ", so the first status line can start mid-line.
-func redact(ctx context.Context, err error) error {
+// redact drops everything from a status prefix to the end of its line, and replaces every occurrence of
+// key with keyPlaceholder, as gpg quotes the key it was given ("gpg: skipped \"<key>\": No secret key").
+// The program signer joins the program's standard error to its own message with ": ", so the first status
+// line can start mid-line.
+func redact(ctx context.Context, err error, key string) error {
 	var kept []string
 	for line := range strings.SplitSeq(err.Error(), "\n") {
 		if before, _, found := strings.Cut(line, statusPrefix); found {
@@ -104,5 +111,9 @@ func redact(ctx context.Context, err error) error {
 			kept = append(kept, line)
 		}
 	}
-	return &signError{text: strings.Join(kept, "; "), cause: ctx.Err()}
+	text := strings.Join(kept, "; ")
+	if key != "" {
+		text = strings.ReplaceAll(text, key, keyPlaceholder)
+	}
+	return &signError{text: text, cause: ctx.Err()}
 }
