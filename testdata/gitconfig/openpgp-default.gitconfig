@@ -1,0 +1,5 @@
+# gpg.format, the program keys and user.signingkey are unset: plan 6.5
+# falls back to "gpg" and to the committer "name <email>" as the key.
+[user]
+	name = Fixture User
+	email = fixture@example.com

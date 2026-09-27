@@ -1,0 +1,8 @@
+# The ssh format without gpg.ssh.program falls back to "ssh-keygen". The
+# key is a literal public key in git's key:: form.
+[user]
+	name = Fixture User
+	email = fixture@example.com
+	signingkey = key::ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureFixtureFixtureFixtureFixture fixture
+[gpg]
+	format = ssh

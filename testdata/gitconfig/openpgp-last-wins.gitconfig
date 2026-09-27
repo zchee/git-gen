@@ -1,0 +1,11 @@
+# A repeated section header does not start over: within one file the last
+# value of a key wins, as in git.
+[user]
+	name = Fixture User
+	email = fixture@example.com
+[gpg]
+	program = /opt/fixture/bin/first
+[core]
+	editor = vi
+[gpg]
+	program = /opt/fixture/bin/second

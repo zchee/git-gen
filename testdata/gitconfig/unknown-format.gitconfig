@@ -1,0 +1,6 @@
+# git knows no signing format named "pkcs11": LoadConfig must fail.
+[user]
+	name = Fixture User
+	email = fixture@example.com
+[gpg]
+	format = pkcs11

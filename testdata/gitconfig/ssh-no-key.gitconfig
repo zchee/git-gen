@@ -1,0 +1,6 @@
+# The ssh format has no fallback key: LoadConfig must fail.
+[user]
+	name = Fixture User
+	email = fixture@example.com
+[gpg]
+	format = ssh

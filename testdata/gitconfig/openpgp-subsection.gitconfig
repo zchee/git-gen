@@ -1,0 +1,10 @@
+# gpg.openpgp.program wins over gpg.program for the openpgp format.
+[user]
+	name = Fixture User
+	email = fixture@example.com
+	signingkey = fixture@example.com
+[gpg]
+	format = openpgp
+	program = /opt/fixture/bin/gpg2
+[gpg "openpgp"]
+	program = /opt/fixture/bin/gpg-openpgp

@@ -1,0 +1,11 @@
+# gpg.ssh.program and a key file path for the ssh format. gpg.program is
+# an OpenPGP setting and must not be used here.
+[user]
+	name = Fixture User
+	email = fixture@example.com
+	signingkey = ~/.ssh/id_ed25519.pub
+[gpg]
+	format = ssh
+	program = /opt/fixture/bin/gpg2
+[gpg "ssh"]
+	program = /opt/fixture/bin/ssh-keygen

@@ -1,0 +1,7 @@
+# The x509 format without gpg.x509.program falls back to "gpgsm".
+[user]
+	name = Fixture User
+	email = fixture@example.com
+	signingkey = 0xFEDCBA9876543210
+[gpg]
+	format = x509

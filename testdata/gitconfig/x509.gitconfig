@@ -1,0 +1,10 @@
+# gpg.x509.program for the x509 format; the key falls back to the
+# committer "name <email>".
+[user]
+	name = Fixture User
+	email = fixture@example.com
+[gpg]
+	format = x509
+	program = /opt/fixture/bin/gpg2
+[gpg "x509"]
+	program = /opt/fixture/bin/gpgsm-wrapper

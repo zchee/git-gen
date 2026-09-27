@@ -1,0 +1,8 @@
+# The legacy gpg.program key selects the OpenPGP program. Key names are
+# matched case-insensitively, as git does ("signingKey").
+[user]
+	name = Fixture User
+	email = fixture@example.com
+	signingKey = 0x0123456789ABCDEF
+[gpg]
+	program = /opt/fixture/bin/gpg2
