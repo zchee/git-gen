@@ -27,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 )
 
 // fakeGoEnv makes the test binary act as the go command, so that the paths the
@@ -205,10 +205,10 @@ func TestInitModule(t *testing.T) {
 					t.Errorf("go.mod after a failed init: Lstat error = %v, want fs.ErrNotExist", err)
 				}
 			case !tt.wantCreated:
-				if diff := cmp.Diff(ModuleResult{}, got); diff != "" {
+				if diff := gocmp.Diff(ModuleResult{}, got); diff != "" {
 					t.Errorf("InitModule() mismatch (-want +got):\n%s", diff)
 				}
-				if diff := cmp.Diff(tt.gomod, readFile(t, root, "go.mod")); diff != "" {
+				if diff := gocmp.Diff(tt.gomod, readFile(t, root, "go.mod")); diff != "" {
 					t.Errorf("go.mod changed (-want +got):\n%s", diff)
 				}
 				if _, err := os.Lstat(filepath.Join(root, "go.sum")); !errors.Is(err, fs.ErrNotExist) {
@@ -243,7 +243,7 @@ func checkCreated(t *testing.T, env []string, root string, got ModuleResult, wan
 			t.Errorf("go.mod lines = %q, want the line %q", lines, want)
 		}
 	}
-	if diff := cmp.Diff(wantGoSum, readFile(t, root, "go.sum")); diff != "" {
+	if diff := gocmp.Diff(wantGoSum, readFile(t, root, "go.sum")); diff != "" {
 		t.Errorf("go.sum mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -298,10 +298,10 @@ func TestInitModuleGoVersion(t *testing.T) {
 			}
 
 			want := ModuleResult{Created: true, ModulePath: "fake.example/inferred", GoVersion: tt.wantVersion}
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := gocmp.Diff(want, got); diff != "" {
 				t.Errorf("InitModule() mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff("module fake.example/inferred\n\ngo "+tt.wantVersion+"\n", readFile(t, root, "go.mod")); diff != "" {
+			if diff := gocmp.Diff("module fake.example/inferred\n\ngo "+tt.wantVersion+"\n", readFile(t, root, "go.mod")); diff != "" {
 				t.Errorf("go.mod mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -385,7 +385,7 @@ func TestInitModuleFailures(t *testing.T) {
 				if got.Created || !strings.Contains(got.Warning, "go.mod not created") || !strings.Contains(got.Warning, tt.wantWarning) {
 					t.Errorf("InitModule() = %+v, want a warning containing %q", got, tt.wantWarning)
 				}
-			} else if diff := cmp.Diff(tt.wantResult, got); diff != "" {
+			} else if diff := gocmp.Diff(tt.wantResult, got); diff != "" {
 				t.Errorf("InitModule() mismatch (-want +got):\n%s", diff)
 			}
 
@@ -413,7 +413,7 @@ func TestInitModuleRootNotDirectory(t *testing.T) {
 	if err == nil {
 		t.Fatalf("InitModule() = %+v, nil; want an error", got)
 	}
-	if diff := cmp.Diff(ModuleResult{}, got); diff != "" {
+	if diff := gocmp.Diff(ModuleResult{}, got); diff != "" {
 		t.Errorf("InitModule() mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -438,7 +438,7 @@ func TestModulePath(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			if diff := cmp.Diff(tt.want, modulePath([]byte(tt.gomod))); diff != "" {
+			if diff := gocmp.Diff(tt.want, modulePath([]byte(tt.gomod))); diff != "" {
 				t.Errorf("modulePath() mismatch (-want +got):\n%s", diff)
 			}
 		})

@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/licensecheck"
 )
 
@@ -63,7 +63,7 @@ func assertCoversNames(t *testing.T, covered []string, exclude ...string) {
 	}
 	slices.Sort(want)
 	got := slices.Sorted(slices.Values(covered))
-	if diff := cmp.Diff(want, got); diff != "" {
+	if diff := gocmp.Diff(want, got); diff != "" {
 		t.Errorf("test cases do not cover the accepted names (-want +got):\n%s", diff)
 	}
 }
@@ -154,7 +154,7 @@ func TestLookup(t *testing.T) {
 			if ok != tc.wantOK {
 				t.Fatalf("Lookup(%q) ok = %t, want %t", tc.name, ok, tc.wantOK)
 			}
-			if diff := cmp.Diff(tc.want, got); diff != "" {
+			if diff := gocmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("Lookup(%q) mismatch (-want +got):\n%s", tc.name, diff)
 			}
 		})
@@ -180,7 +180,7 @@ func TestNames(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			got := Names()
-			if diff := cmp.Diff(tc.want, got); diff != "" {
+			if diff := gocmp.Diff(tc.want, got); diff != "" {
 				t.Fatalf("Names() mismatch (-want +got):\n%s", diff)
 			}
 			got[0] = "mutated"
@@ -263,7 +263,7 @@ func TestRender(t *testing.T) {
 			}
 			text := readData(t, l.SPDXID+".txt")
 			if tc.wantLine == "" {
-				if diff := cmp.Diff(string(text), string(got)); diff != "" {
+				if diff := gocmp.Diff(string(text), string(got)); diff != "" {
 					t.Errorf("Render() differs from data/%s.txt (-want +got):\n%s", l.SPDXID, diff)
 				}
 				return
@@ -483,7 +483,7 @@ func TestFillCopyright(t *testing.T) {
 			if err != nil {
 				t.Fatalf("fillCopyright() error: %v", err)
 			}
-			if diff := cmp.Diff(tc.want, string(got)); diff != "" {
+			if diff := gocmp.Diff(tc.want, string(got)); diff != "" {
 				t.Errorf("fillCopyright() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -526,7 +526,7 @@ func TestManifestIDs(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			if diff := cmp.Diff(tableIDs, tc.got); diff != "" {
+			if diff := gocmp.Diff(tableIDs, tc.got); diff != "" {
 				t.Errorf("IDs mismatch (-table +got):\n%s", diff)
 			}
 		})
@@ -536,7 +536,7 @@ func TestManifestIDs(t *testing.T) {
 // TestManifestData checks each embedded text against its manifest SHA-256, plus the invariants Render relies on.
 func TestManifestData(t *testing.T) {
 	m := readManifest(t)
-	if diff := cmp.Diff(m, embedded); diff != "" {
+	if diff := gocmp.Diff(m, embedded); diff != "" {
 		t.Fatalf("embedded manifest differs from data/manifest.json (-disk +embedded):\n%s", diff)
 	}
 
@@ -723,7 +723,7 @@ func TestParseManifest(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseManifest() error: %v", err)
 			}
-			if diff := cmp.Diff(tc.want, got); diff != "" {
+			if diff := gocmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("parseManifest() mismatch (-want +got):\n%s", diff)
 			}
 		})

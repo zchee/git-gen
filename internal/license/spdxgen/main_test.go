@@ -29,7 +29,7 @@ import (
 	"testing"
 
 	"github.com/go-json-experiment/json"
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 )
 
 // The fixtures copy the shape of the v3.29.0 data: the copyright original of BSD-3-Clause ends in ".  ",
@@ -266,12 +266,12 @@ func TestRun(t *testing.T) {
 				"CC-BY-SA-4.0.txt": ccText,
 				"manifest.json":    wantManifest,
 			} {
-				if diff := cmp.Diff(want, got[name]); diff != "" {
+				if diff := gocmp.Diff(want, got[name]); diff != "" {
 					t.Errorf("%s mismatch (-want +got):\n%s", name, diff)
 				}
 			}
 			wantFiles := []string{"BSD-3-Clause.txt", "CC-BY-SA-4.0.txt", "MIT.txt", "README.md", "manifest.json"}
-			if diff := cmp.Diff(wantFiles, slices.Sorted(maps.Keys(got))); diff != "" {
+			if diff := gocmp.Diff(wantFiles, slices.Sorted(maps.Keys(got))); diff != "" {
 				t.Errorf("written files mismatch (-want +got):\n%s", diff)
 			}
 			for _, want := range []string{
@@ -287,7 +287,7 @@ func TestRun(t *testing.T) {
 			if err := run(ctx, &cfg); err != nil {
 				t.Fatalf("second run() error: %v", err)
 			}
-			if diff := cmp.Diff(got, readDir(t, out)); diff != "" {
+			if diff := gocmp.Diff(got, readDir(t, out)); diff != "" {
 				t.Errorf("second run changed the output (-first +second):\n%s", diff)
 			}
 		})

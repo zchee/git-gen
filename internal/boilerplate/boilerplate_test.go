@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 )
 
 // fixtureDir has the layout of the owner's boilerplate directory, so that the
@@ -180,7 +180,7 @@ func TestDir(t *testing.T) {
 			t.Parallel()
 
 			got := Dir(func(key string) string { return tt.env[key] }, tt.home)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
+			if diff := gocmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Dir() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -249,7 +249,7 @@ func TestRenderWriteSets(t *testing.T) {
 			if len(warnings) != 0 {
 				t.Errorf("Render() warnings = %q, want none", warnings)
 			}
-			if diff := cmp.Diff(want, paths(files)); diff != "" {
+			if diff := gocmp.Diff(want, paths(files)); diff != "" {
 				t.Errorf("Render() paths mismatch (-want +got):\n%s", diff)
 			}
 
@@ -258,7 +258,7 @@ func TestRenderWriteSets(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Write() error = %v", err)
 			}
-			if diff := cmp.Diff(want, written); diff != "" {
+			if diff := gocmp.Diff(want, written); diff != "" {
 				t.Errorf("Write() written mismatch (-want +got):\n%s", diff)
 			}
 			if len(skipped) != 0 {
@@ -268,10 +268,10 @@ func TestRenderWriteSets(t *testing.T) {
 			// Exact equality rules out .github/CODE_OF_CONDUCT.md, .DS_Store,
 			// and, through the directory list, an empty workflows/.
 			gotFiles, gotDirs := tree(t, root)
-			if diff := cmp.Diff(want, gotFiles); diff != "" {
+			if diff := gocmp.Diff(want, gotFiles); diff != "" {
 				t.Errorf("files on disk mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff(parents(want), gotDirs); diff != "" {
+			if diff := gocmp.Diff(parents(want), gotDirs); diff != "" {
 				t.Errorf("directories on disk mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -395,7 +395,7 @@ func TestRenderContent(t *testing.T) {
 			}
 			want := tt.want(t, src)
 			got := find(t, files, tt.output)
-			if diff := cmp.Diff(want, string(got.Content)); diff != "" {
+			if diff := gocmp.Diff(want, string(got.Content)); diff != "" {
 				t.Errorf("%s mismatch (-want +got):\n%s", tt.output, diff)
 			}
 		})
@@ -506,7 +506,7 @@ func TestRenderRules(t *testing.T) {
 				t.Fatalf("Render() error = %v", err)
 			}
 			got := find(t, files, tt.output)
-			if diff := cmp.Diff(tt.want, string(got.Content)); diff != "" {
+			if diff := gocmp.Diff(tt.want, string(got.Content)); diff != "" {
 				t.Errorf("%s mismatch (-want +got):\n%s", tt.output, diff)
 			}
 
@@ -550,7 +550,7 @@ func TestRenderModesAndLinks(t *testing.T) {
 		[]string{"CODE_OF_CONDUCT.md", "README.md", ".golangci.yaml", "Makefile", ".github/SECURITY.md"},
 		githubFiles,
 	)))
-	if diff := cmp.Diff(want, paths(files)); diff != "" {
+	if diff := gocmp.Diff(want, paths(files)); diff != "" {
 		t.Errorf("Render() paths mismatch (-want +got):\n%s", diff)
 	}
 
@@ -739,7 +739,7 @@ func TestMissing(t *testing.T) {
 			for _, p := range tt.want {
 				want = append(want, filepath.Join(dir, filepath.FromSlash(p)))
 			}
-			if diff := cmp.Diff(want, Missing(dir, tt.set)); diff != "" {
+			if diff := gocmp.Diff(want, Missing(dir, tt.set)); diff != "" {
 				t.Errorf("Missing() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -759,7 +759,7 @@ func TestMissingRelativeDir(t *testing.T) {
 	}
 
 	want := []string{filepath.Join(wd, "boilerplate", "go", "Makefile")}
-	if diff := cmp.Diff(want, Missing("boilerplate", Set{Makefile: true})); diff != "" {
+	if diff := gocmp.Diff(want, Missing("boilerplate", Set{Makefile: true})); diff != "" {
 		t.Errorf("Missing() mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -864,10 +864,10 @@ func TestWrite(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Write() error = %v, wantErr %t", err, tt.wantErr)
 			}
-			if diff := cmp.Diff(tt.wantWritten, written); diff != "" {
+			if diff := gocmp.Diff(tt.wantWritten, written); diff != "" {
 				t.Errorf("Write() written mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff(tt.wantSkipped, skipped); diff != "" {
+			if diff := gocmp.Diff(tt.wantSkipped, skipped); diff != "" {
 				t.Errorf("Write() skipped mismatch (-want +got):\n%s", diff)
 			}
 
@@ -876,7 +876,7 @@ func TestWrite(t *testing.T) {
 			for _, p := range gotFiles {
 				got[p] = readFile(t, root, p)
 			}
-			if diff := cmp.Diff(tt.wantFiles, got); diff != "" {
+			if diff := gocmp.Diff(tt.wantFiles, got); diff != "" {
 				t.Errorf("files on disk mismatch (-want +got):\n%s", diff)
 			}
 			if _, err := os.Lstat(filepath.Join(parent, "escape.md")); !errors.Is(err, fs.ErrNotExist) {
@@ -927,10 +927,10 @@ func TestSubstituteOverlap(t *testing.T) {
 		{name: "ZZ", re: regexp.MustCompile(`(ZZ)`), value: func(*Vars) string { return "4" }},
 	}
 	got, unmatched := substitute([]byte("ABC ABC"), rs, &Vars{})
-	if diff := cmp.Diff("1C 1C", string(got)); diff != "" {
+	if diff := gocmp.Diff("1C 1C", string(got)); diff != "" {
 		t.Errorf("substitute() content mismatch (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"XY"}, unmatched); diff != "" {
+	if diff := gocmp.Diff([]string{"XY"}, unmatched); diff != "" {
 		t.Errorf("substitute() unmatched mismatch (-want +got):\n%s", diff)
 	}
 }
