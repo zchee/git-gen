@@ -1,0 +1,20 @@
+# An owner license names the author of the git configuration as the copyright holder, not AUTHOR, while a
+# project license names "The <AUTHOR> Authors".
+
+mkdir $WORK/org/mit
+cd $WORK/org/mit
+exec git-gen mit-owner go
+grep '^Copyright \(c\) [0-9]{4} Test Author$' LICENSE
+! grep 'git-gen' LICENSE
+
+mkdir $WORK/org/bsd
+cd $WORK/org/bsd
+exec git-gen bsd-owner go
+grep '^Copyright \(c\) [0-9]{4} Test Author\.$' LICENSE
+! grep 'git-gen' LICENSE
+
+mkdir $WORK/org/project
+cd $WORK/org/project
+exec git-gen mit-project go
+grep '^Copyright \(c\) [0-9]{4} The git-gen Authors$' LICENSE
+! grep 'Test Author' LICENSE

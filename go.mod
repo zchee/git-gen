@@ -5,6 +5,7 @@ go 1.27
 require (
 	github.com/charmbracelet/log v1.0.0
 	github.com/cli/go-gh/v2 v2.16.1
+	github.com/go-git/gcfg/v2 v2.0.2
 	github.com/go-git/go-git/v6 v6.0.0-alpha.5
 	github.com/go-git/x/plugin/objectsigner/program v0.0.0-20260624122410-382b2905c041
 	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3
@@ -28,7 +29,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/go-git/gcfg/v2 v2.0.2 // indirect
 	github.com/go-git/go-billy/v6 v6.0.0-alpha.2 // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect
 	github.com/henvic/httpretty v0.2.0 // indirect

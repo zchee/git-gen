@@ -1,0 +1,33 @@
+# The organization and the project must be GitHub names: letters, digits, '.', '-' and '_', and not "."
+# or "..". Anything else is a command line mistake: exit 2, the message names the variable, or the
+# directory the value was taken from and the variable to set instead, and nothing is written.
+
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+env ORGANIZATION_NAME='bad org'
+exitcode 2 git-gen apache2 go
+! stdout .
+stderr '^ERRO invalid ORGANIZATION_NAME "bad org": want letters, digits, ''\.'', ''-'' and ''_'', and not "\." or "\.\."$'
+stderr '^usage: git-gen'
+emptydir .
+env ORGANIZATION_NAME=
+
+mkdir '$WORK/org/my proj'
+cd '$WORK/org/my proj'
+exitcode 2 git-gen apache2 go
+! stdout .
+stderr '^ERRO invalid project name "my proj" taken from the directory ".*/org/my proj": set PROJECT_NAME; want letters, digits'
+emptydir .
+
+# PROJECT_NAME replaces the name of the directory, and -l needs no name at all.
+env PROJECT_NAME=myproj
+exec git-gen apache2 go
+stderr '^INFO Generated myproj repository$'
+exec git remote get-url origin
+stdout '^git@github\.com:org/myproj\.git$'
+env PROJECT_NAME=
+
+mkdir '$WORK/bad org/proj'
+cd '$WORK/bad org/proj'
+exec git-gen -l
+stdout '^Go$'

@@ -405,9 +405,10 @@ func TestParseArgs(t *testing.T) {
 
 func TestResolveNames(t *testing.T) {
 	tests := map[string]struct {
-		env  map[string]string
-		wd   string
-		want names
+		env       map[string]string
+		wd        string
+		want      names
+		wantUsage string
 	}{
 		"success: defaults from the working directory": {
 			wd:   "/src/github.com/acme/rocket",
@@ -428,11 +429,66 @@ func TestResolveNames(t *testing.T) {
 			wd:   "/tmp/foo",
 			want: names{org: "tmp", project: "foo", author: "foo"},
 		},
+		"success: GitHub's name characters and an author with spaces and non-ASCII letters": {
+			env:  map[string]string{"ORGANIZATION_NAME": "my-org_2", "PROJECT_NAME": "go.v2", "AUTHOR": "Jürgen Müller & Co."},
+			wd:   "/src/x/y",
+			want: names{org: "my-org_2", project: "go.v2", author: "Jürgen Müller & Co."},
+		},
+		"error: ORGANIZATION_NAME with a newline": {
+			env:       map[string]string{"ORGANIZATION_NAME": "org\n  evil: true"},
+			wd:        "/src/acme/rocket",
+			wantUsage: `invalid ORGANIZATION_NAME "org\n  evil: true": want letters, digits, '.', '-' and '_', and not "." or ".."`,
+		},
+		"error: PROJECT_NAME with a slash": {
+			env:       map[string]string{"PROJECT_NAME": "a/b"},
+			wd:        "/src/acme/rocket",
+			wantUsage: `invalid PROJECT_NAME "a/b": want letters, digits, '.', '-' and '_', and not "." or ".."`,
+		},
+		"error: PROJECT_NAME is ..": {
+			env:       map[string]string{"PROJECT_NAME": ".."},
+			wd:        "/src/acme/rocket",
+			wantUsage: `invalid PROJECT_NAME "..": want letters, digits, '.', '-' and '_', and not "." or ".."`,
+		},
+		"error: AUTHOR with a control character": {
+			env:       map[string]string{"AUTHOR": "The Team\n* filter=lfs"},
+			wd:        "/src/acme/rocket",
+			wantUsage: `invalid AUTHOR "The Team\n* filter=lfs": it contains a control character`,
+		},
+		"error: a project directory whose name has a space": {
+			wd:        "/src/acme/my rocket",
+			wantUsage: `invalid project name "my rocket" taken from the directory "/src/acme/my rocket": set PROJECT_NAME; want letters, digits, '.', '-' and '_', and not "." or ".."`,
+		},
+		"error: an organization directory whose name has a newline": {
+			wd:        "/src/ac\nme/rocket",
+			wantUsage: `invalid organization name "ac\nme" taken from the directory "/src/ac\nme": set ORGANIZATION_NAME; want letters, digits, '.', '-' and '_', and not "." or ".."`,
+		},
+		"error: the root directory has no organization name": {
+			wd:        "/rocket",
+			wantUsage: `invalid organization name "/" taken from the directory "/": set ORGANIZATION_NAME; want letters, digits, '.', '-' and '_', and not "." or ".."`,
+		},
+		"success: variables replace invalid directory names": {
+			env:  map[string]string{"ORGANIZATION_NAME": "acme", "PROJECT_NAME": "rocket"},
+			wd:   "/src/ac me/my rocket",
+			want: names{org: "acme", project: "rocket", author: "rocket"},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			getenv := func(key string) string { return tt.env[key] }
-			got := resolveNames(getenv, filepath.FromSlash(tt.wd))
+			got, err := resolveNames(getenv, filepath.FromSlash(tt.wd))
+			if tt.wantUsage != "" {
+				usageErr, ok := errors.AsType[*usageError](err)
+				if !ok {
+					t.Fatalf("resolveNames(%q) error = %v, want a *usageError", tt.wd, err)
+				}
+				if diff := gocmp.Diff(filepath.FromSlash(tt.wantUsage), usageErr.Error()); diff != "" {
+					t.Errorf("resolveNames(%q) usage error mismatch (-want +got):\n%s", tt.wd, diff)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveNames(%q) error = %v", tt.wd, err)
+			}
 			if diff := gocmp.Diff(tt.want, got, gocmp.AllowUnexported(names{})); diff != "" {
 				t.Errorf("resolveNames(%q) mismatch (-want +got):\n%s", tt.wd, diff)
 			}

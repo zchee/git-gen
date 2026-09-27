@@ -1,0 +1,33 @@
+# The debug line of the signing setup says where the key came from and never prints the key:
+# "committer identity" when user.signingkey is unset, and user.signingkey when it is set, even when its
+# value is the committer's own "name <email>".
+
+mkdir $WORK/org/unset
+cd $WORK/org/unset
+exec git-gen -v apache2 go
+stderr '^DEBU Signing format=openpgp program=.*/testdata/signer/ok\.sh key="committer identity"$'
+
+exec cat $WORK/gitconfig $WORK/key-identity
+cp stdout $WORK/gitconfig-identity
+env GIT_CONFIG_GLOBAL=$WORK/gitconfig-identity
+mkdir $WORK/org/identity
+cd $WORK/org/identity
+exec git-gen -v apache2 go
+stderr '^DEBU Signing format=openpgp program=.*/testdata/signer/ok\.sh key=user\.signingkey$'
+stderr '^INFO Generated identity repository$'
+
+exec cat $WORK/gitconfig $WORK/key-id
+cp stdout $WORK/gitconfig-id
+env GIT_CONFIG_GLOBAL=$WORK/gitconfig-id
+mkdir $WORK/org/id
+cd $WORK/org/id
+exec git-gen -v apache2 go
+stderr '^DEBU Signing format=openpgp program=.*/testdata/signer/ok\.sh key=user\.signingkey$'
+! stderr 'FEEDFACE'
+
+-- key-identity --
+[user]
+	signingkey = Test Author <author@example.com>
+-- key-id --
+[user]
+	signingkey = 0x0123FEEDFACE4567

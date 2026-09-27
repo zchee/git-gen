@@ -36,7 +36,7 @@ type configLayout struct {
 }
 
 // load writes the layout under fresh temporary directories and runs LoadConfig on it.
-func (l configLayout) load(t *testing.T) (Config, error) {
+func (l configLayout) load(t *testing.T) (Config, []string, error) {
 	t.Helper()
 	home, repoDir := t.TempDir(), t.TempDir()
 	env := map[string]string{}
@@ -197,12 +197,19 @@ func TestLoadConfigIdentity(t *testing.T) {
 			layout:  configLayout{gitconfig: "[user\n\tname = Home\n"},
 			wantErr: "parse git config",
 		},
+		"error: a remote with a malformed refspec": {
+			layout: configLayout{
+				repo:      "[remote \"origin\"]\n\turl = x\n\tfetch = bad\n",
+				gitconfig: "[user]\n\tname = Home\n\temail = home@example.com\n",
+			},
+			wantErr: "parse git config",
+		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			cfg, err := tt.layout.load(t)
+			cfg, _, err := tt.layout.load(t)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("LoadConfig() error = %v, want an error containing %q", err, tt.wantErr)
@@ -227,8 +234,9 @@ func TestLoadConfigDefaultBranch(t *testing.T) {
 
 	const identity = "[user]\n\tname = U\n\temail = u@example.com\n"
 	tests := map[string]struct {
-		layout configLayout
-		want   string
+		layout  configLayout
+		want    string
+		wantErr string
 	}{
 		"success: main when init.defaultBranch is unset": {
 			layout: configLayout{gitconfig: identity},
@@ -245,12 +253,26 @@ func TestLoadConfigDefaultBranch(t *testing.T) {
 			},
 			want: "develop",
 		},
+		"error: a branch name git rejects": {
+			layout:  configLayout{gitconfig: identity + "[init]\n\tdefaultBranch = bad..name\n"},
+			wantErr: `init.defaultBranch "bad..name" is not a valid branch name`,
+		},
+		"error: a branch name with a space": {
+			layout:  configLayout{repo: "[init]\n\tdefaultBranch = my branch\n", gitconfig: identity},
+			wantErr: `init.defaultBranch "my branch" is not a valid branch name`,
+		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			cfg, err := tt.layout.load(t)
+			cfg, _, err := tt.layout.load(t)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("LoadConfig() error = %v, want an error containing %q", err, tt.wantErr)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("LoadConfig() error = %v", err)
 			}
@@ -274,7 +296,7 @@ func TestLoadConfigSigning(t *testing.T) {
 			fixture: "openpgp-default.gitconfig",
 			want: Config{
 				SigningFormat: "openpgp", SigningProgram: "gpg",
-				SigningKey: "Fixture User <fixture@example.com>",
+				SigningKey: "Fixture User <fixture@example.com>", SigningKeyFromCommitter: true,
 			},
 		},
 		"success: openpgp uses gpg.program and user.signingkey": {
@@ -284,18 +306,25 @@ func TestLoadConfigSigning(t *testing.T) {
 				SigningKey: "0x0123456789ABCDEF",
 			},
 		},
-		"success: gpg.openpgp.program beats gpg.program": {
+		"success: gpg.openpgp.program after gpg.program wins": {
 			fixture: "openpgp-subsection.gitconfig",
 			want: Config{
 				SigningFormat: "openpgp", SigningProgram: "/opt/fixture/bin/gpg-openpgp",
 				SigningKey: "fixture@example.com",
 			},
 		},
+		"success: gpg.program after gpg.openpgp.program wins": {
+			fixture: "openpgp-program-last.gitconfig",
+			want: Config{
+				SigningFormat: "openpgp", SigningProgram: "/opt/fixture/bin/gpg2",
+				SigningKey: "Fixture User <fixture@example.com>", SigningKeyFromCommitter: true,
+			},
+		},
 		"success: the last gpg.program within one file wins": {
 			fixture: "openpgp-last-wins.gitconfig",
 			want: Config{
 				SigningFormat: "openpgp", SigningProgram: "/opt/fixture/bin/second",
-				SigningKey: "Fixture User <fixture@example.com>",
+				SigningKey: "Fixture User <fixture@example.com>", SigningKeyFromCommitter: true,
 			},
 		},
 		"success: ssh uses gpg.ssh.program, never gpg.program": {
@@ -316,7 +345,7 @@ func TestLoadConfigSigning(t *testing.T) {
 			fixture: "x509.gitconfig",
 			want: Config{
 				SigningFormat: "x509", SigningProgram: "/opt/fixture/bin/gpgsm-wrapper",
-				SigningKey: "Fixture User <fixture@example.com>",
+				SigningKey: "Fixture User <fixture@example.com>", SigningKeyFromCommitter: true,
 			},
 		},
 		"success: x509 defaults to gpgsm": {
@@ -330,7 +359,7 @@ func TestLoadConfigSigning(t *testing.T) {
 			fixture: "identity.gitconfig",
 			want: Config{
 				DefaultBranch: "trunk", SigningFormat: "openpgp", SigningProgram: "gpg",
-				SigningKey: "Fixture User <fixture@example.com>",
+				SigningKey: "Fixture User <fixture@example.com>", SigningKeyFromCommitter: true,
 			},
 		},
 		"error: ssh without user.signingkey": {
@@ -347,7 +376,7 @@ func TestLoadConfigSigning(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			env := map[string]string{"GIT_CONFIG_GLOBAL": testdataPath(t, "gitconfig", tt.fixture)}
-			cfg, err := LoadConfig(ConfigOptions{Getenv: func(k string) string { return env[k] }, Home: t.TempDir()})
+			cfg, warnings, err := LoadConfig(ConfigOptions{Getenv: func(k string) string { return env[k] }, Home: t.TempDir()})
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("LoadConfig() error = %v, want an error containing %q", err, tt.wantErr)
@@ -365,6 +394,187 @@ func TestLoadConfigSigning(t *testing.T) {
 			if diff := gocmp.Diff(want, cfg); diff != "" {
 				t.Errorf("LoadConfig() mismatch (-want +got):\n%s", diff)
 			}
+			if len(warnings) != 0 {
+				t.Errorf("LoadConfig() warnings = %q, want none for keys of a global file", warnings)
+			}
+		})
+	}
+}
+
+// TestLoadConfigOpenPGPProgram checks that gpg.program and gpg.openpgp.program are one setting, as in git:
+// the file of highest precedence that sets either decides, and within it the key that occurs last.
+func TestLoadConfigOpenPGPProgram(t *testing.T) {
+	t.Parallel()
+
+	const identity = "[user]\n\tname = U\n\temail = u@example.com\n"
+	tests := map[string]struct {
+		layout configLayout
+		want   string
+	}{
+		"success: gpg.program in ~/.gitconfig beats gpg.openpgp.program in the XDG file": {
+			layout: configLayout{
+				gitconfig: identity + "[gpg]\n\tprogram = /home/gpg\n",
+				homeXDG:   "[gpg \"openpgp\"]\n\tprogram = /xdg/gpg-openpgp\n",
+			},
+			want: "/home/gpg",
+		},
+		"success: gpg.openpgp.program in ~/.gitconfig beats gpg.program in the XDG file": {
+			layout: configLayout{
+				gitconfig: identity + "[gpg \"openpgp\"]\n\tprogram = /home/gpg-openpgp\n",
+				homeXDG:   "[gpg]\n\tprogram = /xdg/gpg\n",
+			},
+			want: "/home/gpg-openpgp",
+		},
+		"success: a later [gpg] section wins over the subsection between two of them": {
+			layout: configLayout{
+				gitconfig: identity + "[gpg]\n\tprogram = /first\n[gpg \"openpgp\"]\n\tprogram = /middle\n[gpg]\n\tprogram = /last\n",
+			},
+			want: "/last",
+		},
+		"success: the subsection name is case-sensitive": {
+			layout: configLayout{
+				gitconfig: identity + "[gpg]\n\tprogram = /gpg\n[gpg \"OpenPGP\"]\n\tprogram = /other\n",
+			},
+			want: "/gpg",
+		},
+		"success: gpg when neither key is set": {
+			layout: configLayout{gitconfig: identity},
+			want:   "gpg",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg, _, err := tt.layout.load(t)
+			if err != nil {
+				t.Fatalf("LoadConfig() error = %v", err)
+			}
+			if cfg.SigningProgram != tt.want {
+				t.Errorf("SigningProgram = %q, want %q", cfg.SigningProgram, tt.want)
+			}
+		})
+	}
+}
+
+// TestLoadConfigRepoPrograms checks that the signing program comes from the global files only: a program
+// key in the repository's file is ignored with one warning per key, and its other keys still apply.
+func TestLoadConfigRepoPrograms(t *testing.T) {
+	t.Parallel()
+
+	const identity = "[user]\n\tname = Global\n\temail = global@example.com\n"
+	const all = "[gpg]\n\tprogram = /repo/gpg\n[gpg \"openpgp\"]\n\tprogram = /repo/gpg-openpgp\n" +
+		"[gpg \"ssh\"]\n\tprogram = /repo/ssh-keygen\n[gpg \"x509\"]\n\tprogram = /repo/gpgsm\n"
+	tests := map[string]struct {
+		layout       configLayout
+		want         Config
+		wantWarnings []string // each after "<RepoDir>/.git/config: "
+	}{
+		"success: every program key of the repository's file is ignored with a warning": {
+			layout: configLayout{repo: all, gitconfig: identity + "[gpg]\n\tprogram = /global/gpg\n"},
+			want: Config{
+				Author: Identity{Name: "Global", Email: "global@example.com"}, Committer: Identity{Name: "Global", Email: "global@example.com"},
+				DefaultBranch: "main", SigningFormat: "openpgp", SigningProgram: "/global/gpg", SigningKey: "Global <global@example.com>",
+				SigningKeyFromCommitter: true,
+			},
+			wantWarnings: []string{
+				"gpg.program is ignored: the signing program is read from the global git configuration only",
+				"gpg.openpgp.program is ignored: the signing program is read from the global git configuration only",
+				"gpg.ssh.program is ignored: the signing program is read from the global git configuration only",
+				"gpg.x509.program is ignored: the signing program is read from the global git configuration only",
+			},
+		},
+		"success: the format, the key and the identity of the repository's file still apply": {
+			layout: configLayout{
+				repo: "[user]\n\tname = Repo\n\temail = repo@example.com\n\tsigningkey = /repo/key.pub\n" +
+					"[gpg]\n\tformat = ssh\n[gpg \"ssh\"]\n\tprogram = /repo/ssh-keygen\n",
+				gitconfig: identity + "[gpg \"ssh\"]\n\tprogram = /global/ssh-keygen\n",
+			},
+			want: Config{
+				Author: Identity{Name: "Repo", Email: "repo@example.com"}, Committer: Identity{Name: "Repo", Email: "repo@example.com"},
+				DefaultBranch: "main", SigningFormat: "ssh", SigningProgram: "/global/ssh-keygen", SigningKey: "/repo/key.pub",
+			},
+			wantWarnings: []string{"gpg.ssh.program is ignored: the signing program is read from the global git configuration only"},
+		},
+		"success: without a global program the default is used": {
+			layout: configLayout{repo: "[gpg \"x509\"]\n\tprogram =\n[gpg]\n\tformat = x509\n", gitconfig: identity},
+			want: Config{
+				Author: Identity{Name: "Global", Email: "global@example.com"}, Committer: Identity{Name: "Global", Email: "global@example.com"},
+				DefaultBranch: "main", SigningFormat: "x509", SigningProgram: "gpgsm", SigningKey: "Global <global@example.com>",
+				SigningKeyFromCommitter: true,
+			},
+			wantWarnings: []string{"gpg.x509.program is ignored: the signing program is read from the global git configuration only"},
+		},
+		"success: a repository's file without a program key gives no warning": {
+			layout: configLayout{repo: "[user]\n\tsigningkey = 0xABCDEF\n", gitconfig: identity + "[gpg]\n\tprogram = /global/gpg\n"},
+			want: Config{
+				Author: Identity{Name: "Global", Email: "global@example.com"}, Committer: Identity{Name: "Global", Email: "global@example.com"},
+				DefaultBranch: "main", SigningFormat: "openpgp", SigningProgram: "/global/gpg", SigningKey: "0xABCDEF",
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg, warnings, err := tt.layout.load(t)
+			if err != nil {
+				t.Fatalf("LoadConfig() error = %v", err)
+			}
+			if diff := gocmp.Diff(tt.want, cfg); diff != "" {
+				t.Errorf("LoadConfig() mismatch (-want +got):\n%s", diff)
+			}
+			var got []string
+			for _, w := range warnings {
+				file, rest, ok := strings.Cut(w, ": ")
+				if !ok || !strings.HasSuffix(file, filepath.Join(".git", "config")) {
+					t.Errorf("warning %q does not start with the path of the repository's file", w)
+				}
+				got = append(got, rest)
+			}
+			if diff := gocmp.Diff(tt.wantWarnings, got); diff != "" {
+				t.Errorf("LoadConfig() warnings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestLoadConfigSigningKeySource checks that SigningKeyFromCommitter tells the fallback key from a
+// user.signingkey that has the same value.
+func TestLoadConfigSigningKeySource(t *testing.T) {
+	t.Parallel()
+
+	const identity = "[user]\n\tname = U\n\temail = u@example.com\n"
+	tests := map[string]struct {
+		layout            configLayout
+		wantKey           string
+		wantFromCommitter bool
+	}{
+		"success: the committer identity when user.signingkey is unset": {
+			layout:            configLayout{gitconfig: identity},
+			wantKey:           "U <u@example.com>",
+			wantFromCommitter: true,
+		},
+		"success: user.signingkey that equals the committer identity": {
+			layout:  configLayout{gitconfig: identity + "[user]\n\tsigningkey = U <u@example.com>\n"},
+			wantKey: "U <u@example.com>",
+		},
+		"success: user.signingkey of the repository's file": {
+			layout:  configLayout{repo: "[user]\n\tsigningkey = 0xABCDEF\n", gitconfig: identity},
+			wantKey: "0xABCDEF",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg, _, err := tt.layout.load(t)
+			if err != nil {
+				t.Fatalf("LoadConfig() error = %v", err)
+			}
+			if cfg.SigningKey != tt.wantKey || cfg.SigningKeyFromCommitter != tt.wantFromCommitter {
+				t.Errorf("SigningKey, SigningKeyFromCommitter = %q, %t, want %q, %t", cfg.SigningKey, cfg.SigningKeyFromCommitter, tt.wantKey, tt.wantFromCommitter)
+			}
 		})
 	}
 }
@@ -374,7 +584,7 @@ func TestLoadConfigNilGetenv(t *testing.T) {
 
 	home := t.TempDir()
 	writeFiles(t, home, map[string]string{".gitconfig": "[user]\n\tname = Home\n\temail = home@example.com\n"})
-	cfg, err := LoadConfig(ConfigOptions{Home: home})
+	cfg, _, err := LoadConfig(ConfigOptions{Home: home})
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
@@ -438,7 +648,7 @@ func TestLoadConfigSymlink(t *testing.T) {
 				t.Fatalf("target %q is not absolute", target)
 			}
 			env := tt.setup(t, home, target)
-			cfg, err := LoadConfig(ConfigOptions{Getenv: func(k string) string { return env[k] }, Home: home})
+			cfg, _, err := LoadConfig(ConfigOptions{Getenv: func(k string) string { return env[k] }, Home: home})
 			if err != nil {
 				t.Fatalf("LoadConfig() error = %v", err)
 			}
@@ -476,7 +686,7 @@ func TestLoadConfigRepoDir(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			wantErr: "parse git config",
+			wantErr: "is a directory",
 		},
 	}
 
@@ -486,7 +696,7 @@ func TestLoadConfigRepoDir(t *testing.T) {
 			home, repoDir := t.TempDir(), t.TempDir()
 			writeFiles(t, home, map[string]string{".gitconfig": global})
 			tt.setup(t, repoDir)
-			cfg, err := LoadConfig(ConfigOptions{Getenv: func(string) string { return "" }, Home: home, RepoDir: repoDir})
+			cfg, _, err := LoadConfig(ConfigOptions{Getenv: func(string) string { return "" }, Home: home, RepoDir: repoDir})
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("LoadConfig() error = %v, want an error containing %q", err, tt.wantErr)

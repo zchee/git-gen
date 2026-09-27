@@ -1,5 +1,6 @@
 # A signing program that fails is found by the test signature before the repository is initialized:
-# exit 1, no .git and no file. The gpg status lines of the program do not reach the message.
+# exit 1, no .git and no file. The gpg status lines of the program do not reach the message, and the key
+# the program quotes is replaced with <user.signingkey>.
 
 env GIT_CONFIG_GLOBAL=$WORK/gitconfig-fail
 mkdir $WORK/org/proj
@@ -10,6 +11,8 @@ exitcode 1 git-gen apache2 go
 stderr 'ERRO signing: test signature: .*No secret key'
 ! stderr 'GNUPG'
 ! stderr 'KEY_CONSIDERED'
+stderr 'gpg: skipped "<user\.signingkey>": No secret key'
+! stderr 'skipped "Test Author'
 ! stderr 'Generated'
 emptydir .
 

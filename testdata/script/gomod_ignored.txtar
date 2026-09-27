@@ -1,0 +1,22 @@
+# go.mod and go.sum are committed even when a template of the chosen languages ignores them, as the
+# script's `git add -f go.mod go.sum` did.
+
+cp $WORK/Sum.gitignore $HOME/src/github.com/github/gitignore/Sum.gitignore
+mkdir $WORK/org/proj
+cd $WORK/org/proj
+exec git-gen apache2 go Sum
+! stderr 'Not committed'
+! stderr 'ERRO'
+stderr '^INFO Generated proj repository$'
+grep '^# github/gitignore/Sum$' .gitignore
+exec git log --format=%s --name-only -1
+cmp stdout $WORK/want/log
+
+-- Sum.gitignore --
+go.mod
+go.sum
+-- want/log --
+go.mod: init module
+
+go.mod
+go.sum

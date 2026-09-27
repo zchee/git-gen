@@ -1,0 +1,9 @@
+# git reads gpg.program and gpg.openpgp.program as one setting: the one
+# that occurs last in the file wins, here gpg.program.
+[user]
+	name = Fixture User
+	email = fixture@example.com
+[gpg "openpgp"]
+	program = /opt/fixture/bin/gpg-openpgp
+[gpg]
+	program = /opt/fixture/bin/gpg2

@@ -1,4 +1,5 @@
-# gpg.openpgp.program wins over gpg.program for the openpgp format.
+# gpg.openpgp.program occurs after gpg.program, so it wins for the openpgp
+# format.
 [user]
 	name = Fixture User
 	email = fixture@example.com

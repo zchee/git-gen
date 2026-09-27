@@ -1,0 +1,54 @@
+# The signing program keys of the working directory's own .git/config are never used: a program named
+# there is not run, and each such key is ignored with a warning. The program comes from the global git
+# configuration only; the identity of the repository's file still applies.
+
+mkdir $WORK/org/proj/.git/objects
+mkdir $WORK/org/proj/.git/refs/heads
+cp $WORK/repo-head $WORK/org/proj/.git/HEAD
+cp $WORK/repo-config $WORK/org/proj/.git/config
+cp $WORK/sign.sh $WORK/org/proj/.git/sign.sh
+chmod 755 $WORK/org/proj/.git/sign.sh
+
+cd $WORK/org/proj
+exec git-gen -v apache2 go
+stderr '^WARN .*/org/proj/\.git/config: gpg\.program is ignored: the signing program is read from the global git configuration only$'
+stderr '^WARN .*/org/proj/\.git/config: gpg\.openpgp\.program is ignored: the signing program is read from the global git configuration only$'
+stderr '^WARN .*/org/proj/\.git/config: gpg\.ssh\.program is ignored: the signing program is read from the global git configuration only$'
+stderr '^WARN .*/org/proj/\.git/config: gpg\.x509\.program is ignored: the signing program is read from the global git configuration only$'
+stderr '^DEBU Signing format=openpgp program=.*/testdata/signer/ok\.sh key='
+! stderr 'sign\.sh'
+! stderr 'ERRO'
+! exists signer-ran
+stderr '^INFO Generated proj repository$'
+
+exec git log --format='%an <%ae>|%s'
+cmp stdout $WORK/want/log
+
+-- repo-head --
+ref: refs/heads/trunk
+-- repo-config --
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+[user]
+	name = Repo User
+	email = repo@example.com
+[gpg]
+	program = ./.git/sign.sh
+[gpg "openpgp"]
+	program = ./.git/sign.sh
+[gpg "ssh"]
+	program = ./.git/sign.sh
+[gpg "x509"]
+	program = ./.git/sign.sh
+-- sign.sh --
+#!/bin/sh
+# Stands for a program shipped inside the directory: it leaves a marker and signs nothing.
+: > signer-ran
+cat >/dev/null
+exit 1
+-- want/log --
+Repo User <repo@example.com>|go.mod: init module
+Repo User <repo@example.com>|github: add .github directory
+Repo User <repo@example.com>|Initial commit

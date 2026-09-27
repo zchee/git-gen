@@ -39,7 +39,7 @@ func TestRealSigning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("home directory: %v", err)
 	}
-	cfg, err := LoadConfig(ConfigOptions{Getenv: os.Getenv, Home: home})
+	cfg, _, err := LoadConfig(ConfigOptions{Getenv: os.Getenv, Home: home})
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}

@@ -1,0 +1,46 @@
+# A .git file (a linked worktree or a submodule) ends the run with exit 1 before the git configuration is
+# read or anything is written, and the repository it points to is left as it is.
+
+mkdir $WORK/other/.git/objects
+mkdir $WORK/other/.git/refs/heads
+cp $WORK/other-head $WORK/other/.git/HEAD
+cp $WORK/other-config $WORK/other/.git/config
+
+mkdir $WORK/org/proj
+cp $WORK/gitfile $WORK/org/proj/.git
+cd $WORK/org/proj
+exitcode 1 git-gen apache2 go
+! stdout .
+stderr '^ERRO repository: .*/org/proj/\.git is a file, not a directory: linked worktrees and submodules are not supported$'
+! stderr 'Generated'
+tree .
+cmp stdout $WORK/want/tree
+cmp .git $WORK/gitfile
+cmp $WORK/other/.git/config $WORK/other-config
+exec git -C $WORK/other status --porcelain
+! stdout .
+
+# An invalid init.defaultBranch is found before .git is created.
+exec cat $WORK/gitconfig $WORK/bad-branch
+cp stdout $WORK/gitconfig-bad-branch
+env GIT_CONFIG_GLOBAL=$WORK/gitconfig-bad-branch
+mkdir $WORK/org/branch
+cd $WORK/org/branch
+exitcode 1 git-gen apache2 go
+stderr '^ERRO git configuration: init\.defaultBranch "bad\.\.name" is not a valid branch name: '
+emptydir .
+
+-- want/tree --
+.git
+-- gitfile --
+gitdir: ../../other/.git
+-- other-head --
+ref: refs/heads/main
+-- other-config --
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+-- bad-branch --
+[init]
+	defaultBranch = bad..name

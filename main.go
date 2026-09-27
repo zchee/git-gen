@@ -34,9 +34,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/charmbracelet/log"
 
@@ -101,13 +103,17 @@ func run(ctx context.Context, args []string, getenv func(string) string, wd stri
 	if opts.list {
 		err = listTemplates(ctx, logger, stdout, checkout)
 	} else {
+		n, nameErr := resolveNames(getenv, wd)
+		if nameErr != nil {
+			return usageFailure(stderr, nameErr)
+		}
 		g := &generator{
 			log:      logger,
 			getenv:   getenv,
 			dir:      wd,
 			home:     home,
 			checkout: checkout,
-			names:    resolveNames(getenv, wd),
+			names:    n,
 			license:  opts.license,
 			langArgs: opts.langs,
 			year:     time.Now().Year(),
@@ -221,14 +227,46 @@ type names struct {
 	author  string
 }
 
+// githubNameRE matches the characters GitHub accepts in the name of an organization or a repository.
+var githubNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// githubNameRule describes a valid organization or project name in an error.
+const githubNameRule = `want letters, digits, '.', '-' and '_', and not "." or ".."`
+
 // resolveNames reads ORGANIZATION_NAME, PROJECT_NAME and AUTHOR. An empty variable counts as unset: the
 // organization defaults to the name of the parent of wd, the project to the name of wd, and the author to
-// the project.
-func resolveNames(getenv func(string) string, wd string) names {
-	project := cmp.Or(getenv("PROJECT_NAME"), filepath.Base(wd))
-	return names{
-		org:     cmp.Or(getenv("ORGANIZATION_NAME"), filepath.Base(filepath.Dir(wd))),
-		project: project,
-		author:  cmp.Or(getenv("AUTHOR"), project),
+// the project. The names end up in YAML, .gitignore and .gitattributes lines, so the organization and the
+// project must be GitHub names and the author must hold no control character; otherwise the error is a
+// *usageError that names the variable, or the directory the value was taken from.
+func resolveNames(getenv func(string) string, wd string) (names, error) {
+	project, err := githubName(getenv, "PROJECT_NAME", "project", wd)
+	if err != nil {
+		return names{}, err
 	}
+	org, err := githubName(getenv, "ORGANIZATION_NAME", "organization", filepath.Dir(wd))
+	if err != nil {
+		return names{}, err
+	}
+	author := cmp.Or(getenv("AUTHOR"), project)
+	if strings.ContainsFunc(author, unicode.IsControl) {
+		return names{}, &usageError{msg: fmt.Sprintf("invalid AUTHOR %q: it contains a control character", author)}
+	}
+	return names{org: org, project: project, author: author}, nil
+}
+
+// githubName returns the value of the variable key or, when it is empty, the name of dir. what says which
+// name it is in an error.
+func githubName(getenv func(string) string, key, what, dir string) (string, error) {
+	valid := func(name string) bool { return githubNameRE.MatchString(name) && name != "." && name != ".." }
+	if name := getenv(key); name != "" {
+		if !valid(name) {
+			return "", &usageError{msg: fmt.Sprintf("invalid %s %q: %s", key, name, githubNameRule)}
+		}
+		return name, nil
+	}
+	name := filepath.Base(dir)
+	if !valid(name) {
+		return "", &usageError{msg: fmt.Sprintf("invalid %s name %q taken from the directory %q: set %s; %s", what, name, dir, key, githubNameRule)}
+	}
+	return name, nil
 }

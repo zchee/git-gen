@@ -6,19 +6,27 @@
 mkdir $WORK/org/proj
 cd $WORK/org/proj
 exec git-gen apache2 go
+! stderr 'WARN go\.mod'
 grep '^module github\.com/org/proj$' go.mod
 grep '^go '$GO_MINOR'$' go.mod
 exists go.sum
 ! grep . go.sum
 
-# Inside GOPATH.
+# Inside GOPATH. The module path differs from github.com/<org>/<project>, so a warning names both.
 mkdir $GOPATH/src/example.com/foo/bar
 cd $GOPATH/src/example.com/foo/bar
 exec git-gen apache2 Go
+stderr '^WARN go\.mod declares a module path other than github\.com/<org>/<project> module=example\.com/foo/bar want=github\.com/foo/bar$'
 grep '^module example\.com/foo/bar$' go.mod
 grep '^go '$GO_MINOR'$' go.mod
 exists go.sum
 ! grep . go.sum
+
+# An import comment in the directory chooses the module path of `go mod init`; the warning names it.
+cd $WORK/org/imported
+exec git-gen apache2 go
+stderr '^WARN go\.mod declares a module path other than github\.com/<org>/<project> module=other\.example/chosen want=github\.com/org/imported$'
+grep '^module other\.example/chosen$' go.mod
 
 # ORGANIZATION_NAME and PROJECT_NAME name the fallback module path.
 env ORGANIZATION_NAME=acme
@@ -26,6 +34,7 @@ env PROJECT_NAME=rocket
 mkdir $WORK/org/named
 cd $WORK/org/named
 exec git-gen apache2 go
+! stderr 'WARN go\.mod'
 grep '^module github\.com/acme/rocket$' go.mod
 env ORGANIZATION_NAME=
 env PROJECT_NAME=
@@ -38,6 +47,8 @@ cmp go.mod $WORK/want/go.mod
 exec git log --format=%s --name-only -1
 cmp stdout $WORK/want/log
 
+-- org/imported/imp.go --
+package imp // import "other.example/chosen"
 -- org/keep/go.mod --
 module example.com/keep
 

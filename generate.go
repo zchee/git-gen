@@ -191,6 +191,10 @@ func (g *generator) preflight(ctx context.Context) (*prepared, error) {
 	}
 	p.gitignore = content
 
+	// This check covers both the read of the working directory's git configuration and the later Open.
+	if err := repo.CheckDir(g.dir); err != nil {
+		return nil, fmt.Errorf("repository: %w", err)
+	}
 	if p.config, err = g.loadConfig(); err != nil {
 		return nil, err
 	}
@@ -256,12 +260,15 @@ func (g *generator) renderBoilerplate(scaffold gitignore.Scaffold) ([]boilerplat
 
 // loadConfig reads the git configuration and logs the identity and signing setup it found.
 func (g *generator) loadConfig() (repo.Config, error) {
-	cfg, err := repo.LoadConfig(repo.ConfigOptions{Getenv: g.getenv, Home: g.home, RepoDir: g.dir})
+	cfg, warnings, err := repo.LoadConfig(repo.ConfigOptions{Getenv: g.getenv, Home: g.home, RepoDir: g.dir})
 	if err != nil {
 		return repo.Config{}, fmt.Errorf("git configuration: %w", err)
 	}
+	for _, w := range warnings {
+		g.log.Warn(w)
+	}
 	key := "user.signingkey"
-	if cfg.SigningKey == cfg.Committer.Name+" <"+cfg.Committer.Email+">" {
+	if cfg.SigningKeyFromCommitter {
 		key = "committer identity"
 	}
 	g.log.Debug("Git identity",
@@ -311,12 +318,12 @@ func (g *generator) writeFiles(ctx context.Context, p *prepared) error {
 	return nil
 }
 
-// initModule creates go.mod and go.sum unless go.mod exists. A missing go command is a warning.
+// initModule creates go.mod and go.sum unless go.mod exists. A missing go command is a warning, and so is a
+// module path other than github.com/<org>/<project>, which go mod init takes from GOPATH or from an import
+// comment in the directory.
 func (g *generator) initModule(ctx context.Context) error {
-	res, err := boilerplate.InitModule(ctx, boilerplate.ModuleOptions{
-		Root:         g.dir,
-		FallbackPath: "github.com/" + g.names.org + "/" + g.names.project,
-	})
+	want := "github.com/" + g.names.org + "/" + g.names.project
+	res, err := boilerplate.InitModule(ctx, boilerplate.ModuleOptions{Root: g.dir, FallbackPath: want})
 	switch {
 	case err != nil:
 		return fmt.Errorf("go.mod: %w", err)
@@ -324,6 +331,9 @@ func (g *generator) initModule(ctx context.Context) error {
 		g.log.Warn(res.Warning)
 	case res.Created:
 		g.log.Debug("Created go.mod", "module", res.ModulePath, "go", res.GoVersion)
+		if res.ModulePath != want {
+			g.log.Warn("go.mod declares a module path other than github.com/<org>/<project>", "module", res.ModulePath, "want", want)
+		}
 	default:
 		g.log.Debug("Exists; left as it is", "path", "go.mod")
 	}

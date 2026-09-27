@@ -1,0 +1,24 @@
+# A template in the boilerplate directory that is a symbolic link to a file outside the directory ends the
+# run with exit 1 before anything is written, and the message names the template. A link that stays inside
+# the directory is followed.
+
+rm $XDG_CONFIG_HOME/boilerplate/.github/PULL_REQUEST_TEMPLATE.md
+symlink $XDG_CONFIG_HOME/boilerplate/.github/PULL_REQUEST_TEMPLATE.md -> $WORK/secret.txt
+mkdir $WORK/org/outside
+cd $WORK/org/outside
+exitcode 1 git-gen apache2 go
+! stdout .
+stderr '^ERRO render boilerplate: boilerplate: template .*/xdg/boilerplate/\.github/PULL_REQUEST_TEMPLATE\.md: .*path escapes from parent$'
+! stderr 'not for any repository'
+emptydir .
+
+rm $XDG_CONFIG_HOME/boilerplate/.github/PULL_REQUEST_TEMPLATE.md
+symlink $XDG_CONFIG_HOME/boilerplate/.github/PULL_REQUEST_TEMPLATE.md -> CODEOWNERS
+mkdir $WORK/org/inside
+cd $WORK/org/inside
+exec git-gen apache2 go
+stderr '^INFO Generated inside repository$'
+cmp .github/PULL_REQUEST_TEMPLATE.md $XDG_CONFIG_HOME/boilerplate/.github/CODEOWNERS
+
+-- secret.txt --
+This line is not for any repository.
