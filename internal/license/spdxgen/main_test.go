@@ -242,7 +242,7 @@ func TestRun(t *testing.T) {
 			}
 			cfg := config{BaseURL: srv.URL, Tag: tag, OutDir: out, IDs: tc.ids, Client: srv.Client()}
 
-			err := run(ctx, cfg)
+			err := run(ctx, &cfg)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("run() error = %v, want one containing %q", err, tc.wantErr)
@@ -284,7 +284,7 @@ func TestRun(t *testing.T) {
 				}
 			}
 
-			if err := run(ctx, cfg); err != nil {
+			if err := run(ctx, &cfg); err != nil {
 				t.Fatalf("second run() error: %v", err)
 			}
 			if diff := cmp.Diff(got, readDir(t, out)); diff != "" {

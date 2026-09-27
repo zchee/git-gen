@@ -78,7 +78,7 @@ type config struct {
 	Client  *http.Client
 }
 
-func (c config) url(name string) string {
+func (c *config) url(name string) string {
 	return c.BaseURL + "/" + c.Tag + "/json/" + name
 }
 
@@ -96,7 +96,7 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	err := run(ctx, config{
+	err := run(ctx, &config{
 		BaseURL: defaultBaseURL,
 		Tag:     tag,
 		OutDir:  outDir,
@@ -109,7 +109,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, cfg config) error {
+func run(ctx context.Context, cfg *config) error {
 	var list struct {
 		LicenseListVersion string `json:"licenseListVersion"`
 	}
@@ -168,7 +168,7 @@ func check(id string, d details) (entry, error) {
 }
 
 func fetchJSON(ctx context.Context, client *http.Client, url string, v any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("fetch %s: %w", url, err)
 	}
@@ -289,7 +289,7 @@ with a copyright line that names the year and the copyright holder. The files in
 modified.
 `))
 
-func write(cfg config, m manifest, texts map[string]string) error {
+func write(cfg *config, m manifest, texts map[string]string) error {
 	manifestJSON, err := json.Marshal(m, json.Deterministic(true), jsontext.WithIndent("  "))
 	if err != nil {
 		return fmt.Errorf("encode manifest: %w", err)
@@ -306,7 +306,7 @@ func write(cfg config, m manifest, texts map[string]string) error {
 	}
 
 	if err := os.MkdirAll(cfg.OutDir, 0o755); err != nil {
-		return err
+		return fmt.Errorf("create %s: %w", cfg.OutDir, err)
 	}
 	files := map[string][]byte{
 		"manifest.json": manifestJSON,
@@ -316,8 +316,8 @@ func write(cfg config, m manifest, texts map[string]string) error {
 		files[id+".txt"] = []byte(text)
 	}
 	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(cfg.OutDir, name), content, 0o644); err != nil {
-			return err
+		if err := os.WriteFile(filepath.Join(cfg.OutDir, name), content, 0o644); err != nil { //nolint:gosec // G306: public data committed to the repository; 0600 would hide it from other users and build tools.
+			return fmt.Errorf("write %s: %w", name, err)
 		}
 	}
 	return nil

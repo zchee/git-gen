@@ -239,7 +239,7 @@ func TestRender(t *testing.T) {
 		},
 	}
 
-	var covered []string
+	covered := make([]string, 0, len(tests))
 	for name, tc := range tests {
 		covered = append(covered, tc.name)
 		t.Run(name, func(t *testing.T) {
@@ -504,7 +504,7 @@ func TestManifestIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fileIDs []string
+	fileIDs := make([]string, 0, len(txtFiles))
 	for _, f := range txtFiles {
 		fileIDs = append(fileIDs, strings.TrimSuffix(filepath.Base(f), ".txt"))
 	}
@@ -605,7 +605,7 @@ func TestLicensecheck(t *testing.T) {
 		"success: CC-BY-SA-4.0": {name: "CC-BY-SA-4.0", wantID: "CC-BY-SA-4.0"},
 	}
 
-	var covered []string
+	covered := make([]string, 0, len(tests))
 	for name, tc := range tests {
 		covered = append(covered, tc.name)
 		t.Run(name, func(t *testing.T) {

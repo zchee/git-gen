@@ -63,18 +63,26 @@ type Vars struct {
 	Year   int
 }
 
+// SPDX IDs of the table rows.
+const (
+	idBSD3Clause = "BSD-3-Clause"
+	idMIT        = "MIT"
+	idApache20   = "Apache-2.0"
+	idCCBYSA40   = "CC-BY-SA-4.0"
+)
+
 var table = []struct {
 	names  []string
 	spdxID string
 	holder Holder
 }{
-	{names: []string{"bsd", "bsd-project"}, spdxID: "BSD-3-Clause", holder: HolderProject},
-	{names: []string{"bsd-owner"}, spdxID: "BSD-3-Clause", holder: HolderOwner},
-	{names: []string{"bsd-go"}, spdxID: "BSD-3-Clause", holder: HolderGoAuthors},
-	{names: []string{"mit", "mit-project"}, spdxID: "MIT", holder: HolderProject},
-	{names: []string{"mit-owner"}, spdxID: "MIT", holder: HolderOwner},
-	{names: []string{"apache2", "Apache2"}, spdxID: "Apache-2.0", holder: HolderNone},
-	{names: []string{"CC4", "CC-BY-SA-4.0"}, spdxID: "CC-BY-SA-4.0", holder: HolderNone},
+	{names: []string{"bsd", "bsd-project"}, spdxID: idBSD3Clause, holder: HolderProject},
+	{names: []string{"bsd-owner"}, spdxID: idBSD3Clause, holder: HolderOwner},
+	{names: []string{"bsd-go"}, spdxID: idBSD3Clause, holder: HolderGoAuthors},
+	{names: []string{"mit", "mit-project"}, spdxID: idMIT, holder: HolderProject},
+	{names: []string{"mit-owner"}, spdxID: idMIT, holder: HolderOwner},
+	{names: []string{"apache2", "Apache2"}, spdxID: idApache20, holder: HolderNone},
+	{names: []string{"CC4", "CC-BY-SA-4.0"}, spdxID: idCCBYSA40, holder: HolderNone},
 	{names: []string{"none"}},
 }
 
