@@ -141,6 +141,26 @@ func TestIgnoreMatcher(t *testing.T) {
 			},
 			wantIgnored: []string{"a/b/c.txt", "notes.md"},
 		},
+		"success: CRLF line endings": {
+			files: map[string]string{
+				".gitignore": "*.log\r\nbuild/\r\n!keep.log\r\n# comment\r\n\r\nlast.txt\r",
+				"a.log":      "",
+				"keep.log":   "",
+				"build/x":    "",
+				"last.txt":   "",
+				"other.txt":  "",
+			},
+			wantIgnored: []string{"a.log", "build/x", "last.txt"},
+		},
+		"success: a UTF-8 byte order mark before the first pattern": {
+			files: map[string]string{
+				".gitignore": "\xef\xbb\xbf*.log\nsecond.txt\n",
+				"a.log":      "",
+				"second.txt": "",
+				"other.txt":  "",
+			},
+			wantIgnored: []string{"a.log", "second.txt"},
+		},
 		"success: a directory-only pattern does not match a file of that name": {
 			files: map[string]string{
 				".gitignore":   "logs/\n",

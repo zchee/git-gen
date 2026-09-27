@@ -97,7 +97,10 @@ func (m *ignoreMatcher) load(dir []string) ([]ignoreRule, error) {
 	case err != nil:
 		return nil, fmt.Errorf("read .gitignore: %w", err)
 	default:
-		for line := range strings.SplitSeq(string(data), "\n") {
+		// As git does, skip a UTF-8 byte order mark at the start of the file and one carriage return at
+		// the end of each line.
+		for line := range strings.SplitSeq(strings.TrimPrefix(string(data), "\uFEFF"), "\n") {
+			line = strings.TrimSuffix(line, "\r")
 			if rule, ok := parseIgnoreLine(line, slices.Clone(dir)); ok {
 				rules = append(rules, rule)
 			}
