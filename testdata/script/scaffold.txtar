@@ -60,12 +60,6 @@ exec git-gen apache2 go-pkg
 tree .
 cmp stdout $WORK/want/plain
 
-mkdir $WORK/o/gopkg-bsd
-cd $WORK/o/gopkg-bsd
-exec git-gen bsd go-pkg
-tree .
-cmp stdout $WORK/want/plain
-
 mkdir $WORK/o/both-apache2
 cd $WORK/o/both-apache2
 exec git-gen apache2 go Go

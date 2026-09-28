@@ -239,9 +239,11 @@ func cmdExitCode(ts *testscript.TestScript, neg bool, args []string) {
 	}
 }
 
-// cmdEmptyDir implements "emptydir <dir>": it fails unless dir exists and has no entries. With "!", it
-// fails unless dir has an entry.
+// cmdEmptyDir implements "emptydir <dir>": it fails unless dir exists and has no entries.
 func cmdEmptyDir(ts *testscript.TestScript, neg bool, args []string) {
+	if neg {
+		ts.Fatalf("unsupported: ! emptydir")
+	}
 	if len(args) != 1 {
 		ts.Fatalf("usage: emptydir <dir>")
 	}
@@ -252,10 +254,7 @@ func cmdEmptyDir(ts *testscript.TestScript, neg bool, args []string) {
 	for _, e := range entries {
 		names = append(names, e.Name())
 	}
-	switch {
-	case neg && len(names) == 0:
-		ts.Fatalf("%s is empty", args[0])
-	case !neg && len(names) > 0:
+	if len(names) > 0 {
 		ts.Fatalf("%s is not empty: %s", args[0], strings.Join(names, " "))
 	}
 }
@@ -344,6 +343,11 @@ func TestParseArgs(t *testing.T) {
 		},
 		"error: license without a language": {
 			args:      []string{"apache2"},
+			wantUsage: "want a license and at least one language",
+		},
+		// The argument count is checked before the license, so a lone language is not an unknown license.
+		"error: a language alone": {
+			args:      []string{"Go"},
 			wantUsage: "want a license and at least one language",
 		},
 		"error: flag after the arguments": {

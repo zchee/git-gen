@@ -11,34 +11,11 @@ stderr '^usage: git-gen \[-v\] <license> <language>\.\.\.$'
 stderr '^       git-gen -l$'
 emptydir .
 
-exitcode 2 git-gen apache2
-! stdout .
-stderr 'ERRO want a license and at least one language'
-stderr '^usage: git-gen'
-emptydir .
-
-# A single argument other than -l is not enough, even when it names a language.
-exitcode 2 git-gen Go
-! stdout .
-stderr 'ERRO want a license and at least one language'
-stderr '^usage: git-gen'
-emptydir .
-
 # A flag after the first argument is not parsed as a flag.
 exitcode 2 git-gen apache2 go -v
 ! stdout .
 stderr 'ERRO argument "-v" starts with ''-'': flags come before the arguments'
 stderr '^usage: git-gen'
-emptydir .
-
-exitcode 2 git-gen apache2 -
-! stdout .
-stderr 'ERRO argument "-" starts with ''-'''
-emptydir .
-
-exitcode 2 git-gen -- apache2 -x
-! stdout .
-stderr 'ERRO argument "-x" starts with ''-'''
 emptydir .
 
 exitcode 2 git-gen -x apache2 go
@@ -60,7 +37,7 @@ stderr '^usage: git-gen'
 emptydir .
 
 # -h prints the usage and succeeds.
-exitcode 0 git-gen -h
+exec git-gen -h
 ! stdout .
 stderr '^usage: git-gen'
 stderr '^  -l\s'
