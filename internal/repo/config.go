@@ -26,7 +26,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/go-git/gcfg/v2"
+	gcfg "github.com/go-git/gcfg/v2"
 	"github.com/go-git/go-git/v6/config"
 	"github.com/go-git/go-git/v6/plumbing"
 	format "github.com/go-git/go-git/v6/plumbing/format/config"
