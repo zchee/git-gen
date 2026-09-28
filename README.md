@@ -1,5 +1,7 @@
 # git-gen
 
+[![codecov.io][codecov-badge]][codecov]
+
 git-gen turns the working directory into a new git repository in one run. It writes `LICENSE`, `.gitignore`,
 `.gitattributes`, `CODE_OF_CONDUCT.md` and `README.md`, places the Go boilerplate when a Go language is named, adds
 the `origin` remote, makes up to three signed commits, and applies a fixed set of repository settings on GitHub.
@@ -508,6 +510,16 @@ Run the tests:
 go test ./...
 ```
 
+To measure coverage the way CI does, and write a JUnit report next to it:
+
+```sh
+go tool gotestsum --junitfile _test_results/tests.xml -- \
+  -race -count=1 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+```
+
+CI uploads both to [Codecov][codecov] from Linux and macOS. `-coverpkg=./...` counts the lines each package's tests
+reach in every package, so the end-to-end scripts in the root package add to the coverage of `internal/`.
+
 `go test ./...` also runs the end-to-end scripts under `testdata/script/`. Each script runs git-gen as a separate
 process with its own `HOME`, `XDG_CONFIG_HOME` and `GIT_CONFIG_GLOBAL`, a copy of `testdata/gitignore` as the
 gitignore checkout, a copy of `testdata/boilerplate` as the boilerplate directory, a signing stub from
@@ -548,3 +560,7 @@ See `internal/license/data/README.md` and `internal/license/data/manifest.json`.
 ## License
 
 git-gen is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
+
+<!-- badge links -->
+[codecov]: https://app.codecov.io/gh/zchee/git-gen
+[codecov-badge]: https://img.shields.io/codecov/c/github/zchee/git-gen/main?logo=codecov&style=for-the-badge
