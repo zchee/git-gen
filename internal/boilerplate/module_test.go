@@ -55,12 +55,8 @@ func fakeGo(args []string) int {
 	switch {
 	case command == "env GOVERSION":
 		fmt.Fprintln(os.Stdout, os.Getenv("FAKE_GO_VERSION"))
-	case len(args) >= 2 && args[0] == "mod" && args[1] == "init":
-		modPath := "fake.example/inferred"
-		if len(args) > 2 {
-			modPath = args[2]
-		}
-		if err := os.WriteFile("go.mod", []byte("module "+modPath+"\n"), 0o644); err != nil {
+	case command == "mod init":
+		if err := os.WriteFile("go.mod", []byte("module fake.example/inferred\n"), 0o644); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -134,34 +130,30 @@ func TestInitModule(t *testing.T) {
 	const fallback = "github.com/acme/widget"
 
 	tests := map[string]struct {
-		root        func(tmp, gopath string) string
-		gomod       string // written before InitModule when not empty
-		gosum       string // written before InitModule when not empty
-		fallback    string
-		wantCreated bool
-		wantModule  string
-		wantGoSum   string
-		wantErr     bool
+		root       func(tmp, gopath string) string
+		gomod      string // written before InitModule when not empty
+		gosum      string // written before InitModule when not empty
+		fallback   string
+		wantModule string
+		wantGoSum  string
+		wantErr    bool
 	}{
 		"success: inside GOPATH the module path is inferred": {
-			root:        func(_, gopath string) string { return filepath.Join(gopath, "src", "example.com", "foo", "bar") },
-			fallback:    fallback,
-			wantCreated: true,
-			wantModule:  "example.com/foo/bar",
+			root:       func(_, gopath string) string { return filepath.Join(gopath, "src", "example.com", "foo", "bar") },
+			fallback:   fallback,
+			wantModule: "example.com/foo/bar",
 		},
 		"success: outside GOPATH the fallback path is used": {
-			root:        func(tmp, _ string) string { return filepath.Join(tmp, "work", "widget") },
-			fallback:    fallback,
-			wantCreated: true,
-			wantModule:  fallback,
+			root:       func(tmp, _ string) string { return filepath.Join(tmp, "work", "widget") },
+			fallback:   fallback,
+			wantModule: fallback,
 		},
 		"success: an existing go.sum is kept": {
-			root:        func(tmp, _ string) string { return filepath.Join(tmp, "work", "widget") },
-			gosum:       "example.com/dep v1.0.0 h1:AAAA=\n",
-			fallback:    fallback,
-			wantCreated: true,
-			wantModule:  fallback,
-			wantGoSum:   "example.com/dep v1.0.0 h1:AAAA=\n",
+			root:       func(tmp, _ string) string { return filepath.Join(tmp, "work", "widget") },
+			gosum:      "example.com/dep v1.0.0 h1:AAAA=\n",
+			fallback:   fallback,
+			wantModule: fallback,
+			wantGoSum:  "example.com/dep v1.0.0 h1:AAAA=\n",
 		},
 		"success: an existing go.mod is not changed": {
 			root:     func(tmp, _ string) string { return filepath.Join(tmp, "work", "widget") },
@@ -204,7 +196,7 @@ func TestInitModule(t *testing.T) {
 				if _, err := os.Lstat(filepath.Join(root, "go.mod")); !errors.Is(err, fs.ErrNotExist) {
 					t.Errorf("go.mod after a failed init: Lstat error = %v, want fs.ErrNotExist", err)
 				}
-			case !tt.wantCreated:
+			case tt.gomod != "":
 				if diff := gocmp.Diff(ModuleResult{}, got); diff != "" {
 					t.Errorf("InitModule() mismatch (-want +got):\n%s", diff)
 				}

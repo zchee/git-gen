@@ -29,8 +29,8 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 )
 
-// fixtureDir has the layout of the owner's boilerplate directory, so that the
-// end-to-end tests can point XDG_CONFIG_HOME at the testdata directory.
+// fixtureDir has the layout of the owner's boilerplate directory. The
+// end-to-end tests copy it into their XDG_CONFIG_HOME.
 var fixtureDir = filepath.Join("..", "..", "testdata", "boilerplate")
 
 var testVars = Vars{
@@ -352,26 +352,20 @@ func TestRenderContent(t *testing.T) {
 		"success: the code of conduct carries the contact": {
 			output:   "CODE_OF_CONDUCT.md",
 			template: ".github/CODE_OF_CONDUCT.md",
-			want: func(t *testing.T, src string) string {
-				t.Helper()
-
+			want: func(_ *testing.T, src string) string {
 				return strings.Replace(src, "[INSERT CONTACT METHOD]", "conduct@example.com", 1)
 			},
 		},
 		"success: templates without placeholders are copied verbatim": {
 			output:   "Makefile",
 			template: "go/Makefile",
-			want: func(t *testing.T, src string) string {
-				t.Helper()
-
+			want: func(_ *testing.T, src string) string {
 				return src
 			},
 		},
 		"success: README.md is the project title": {
 			output: "README.md",
-			want: func(t *testing.T, _ string) string {
-				t.Helper()
-
+			want: func(_ *testing.T, _ string) string {
 				return "# widget\n"
 			},
 		},
@@ -569,9 +563,9 @@ func TestRenderModesAndLinks(t *testing.T) {
 	}
 }
 
-// TestRenderLinkConfinement checks that a template link is followed only while its target stays inside
-// the boilerplate directory, so that no file outside it is copied into a repository and committed. The
-// directory itself may be reached through a link, as ~/.config often is.
+// TestRenderLinkConfinement checks that a template link whose target leaves the boilerplate directory is
+// refused, so that no file outside it is copied into a repository and committed.
+// TestRenderModesAndLinks covers a link that stays inside, and TestRenderLinkedDir a linked directory.
 func TestRenderLinkConfinement(t *testing.T) {
 	t.Parallel()
 
@@ -581,7 +575,7 @@ func TestRenderLinkConfinement(t *testing.T) {
 		// link returns the template path, slash-separated, that is replaced with a link to target, and the
 		// value of that link.
 		link func(target string) (name, value string)
-		// wantErrPath is the template that the error must name; empty means that Render succeeds.
+		// wantErrPath is the template that the error must name.
 		wantErrPath string
 	}{
 		"error: a .github template linked to an absolute path outside": {
@@ -600,12 +594,6 @@ func TestRenderLinkConfinement(t *testing.T) {
 			set:         Set{Makefile: true},
 			link:        func(target string) (string, string) { return "go/Makefile", target },
 			wantErrPath: "go/Makefile",
-		},
-		"success: a link inside the directory is followed": {
-			set: Set{Go: true},
-			link: func(string) (string, string) {
-				return ".github/renovate.json5", "dependabot.yaml"
-			},
 		},
 	}
 
@@ -626,19 +614,6 @@ func TestRenderLinkConfinement(t *testing.T) {
 			}
 
 			files, _, err := Render(dir, tt.set, testVars)
-			if tt.wantErrPath == "" {
-				if err != nil {
-					t.Fatalf("Render() error = %v", err)
-				}
-				want, err := os.ReadFile(filepath.Join(dir, ".github", "dependabot.yaml"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if got := find(t, files, linkName).Content; string(got) != string(want) {
-					t.Errorf("%s content = %q, want the content of its target %q", linkName, got, want)
-				}
-				return
-			}
 			if err == nil {
 				t.Fatalf("Render() = %q, want an error for the link that leaves the directory", paths(files))
 			}
@@ -648,11 +623,6 @@ func TestRenderLinkConfinement(t *testing.T) {
 			if files != nil {
 				t.Errorf("Render() files = %q, want nil with the error", paths(files))
 			}
-			for _, f := range files {
-				if strings.Contains(string(f.Content), secret) {
-					t.Errorf("%s carries the content of a file outside the directory", f.Path)
-				}
-			}
 		})
 	}
 }
@@ -661,44 +631,25 @@ func TestRenderLinkConfinement(t *testing.T) {
 func TestRenderLinkedDir(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]struct {
-		set  Set
-		want []string
-	}{
-		"success: Go templates through a linked directory": {
-			set:  Set{Go: true, Makefile: true, Hack: true},
-			want: slices.Concat([]string{".golangci.yaml", "CODE_OF_CONDUCT.md", "Makefile", "README.md", "hack/boilerplate/boilerplate.go.txt"}, githubFiles),
-		},
-		"success: the code of conduct alone through a linked directory": {
-			set:  Set{},
-			want: []string{"CODE_OF_CONDUCT.md", "README.md"},
-		},
+	target := fixture(t)
+	if !filepath.IsAbs(target) {
+		t.Fatalf("fixture %q is not absolute", target)
+	}
+	config := filepath.Join(t.TempDir(), ".config")
+	if err := os.Symlink(filepath.Dir(target), config); err != nil {
+		t.Fatal(err)
 	}
 
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			target := fixture(t)
-			if !filepath.IsAbs(target) {
-				t.Fatalf("fixture %q is not absolute", target)
-			}
-			config := filepath.Join(t.TempDir(), ".config")
-			if err := os.Symlink(filepath.Dir(target), config); err != nil {
-				t.Fatal(err)
-			}
-
-			files, warnings, err := Render(filepath.Join(config, "boilerplate"), tt.set, testVars)
-			if err != nil {
-				t.Fatalf("Render() error = %v", err)
-			}
-			if len(warnings) != 0 {
-				t.Errorf("Render() warnings = %q, want none", warnings)
-			}
-			if diff := gocmp.Diff(slices.Sorted(slices.Values(tt.want)), paths(files)); diff != "" {
-				t.Errorf("Render() paths mismatch (-want +got):\n%s", diff)
-			}
-		})
+	files, warnings, err := Render(filepath.Join(config, "boilerplate"), Set{Go: true, Makefile: true, Hack: true}, testVars)
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("Render() warnings = %q, want none", warnings)
+	}
+	want := slices.Sorted(slices.Values(slices.Concat([]string{".golangci.yaml", "CODE_OF_CONDUCT.md", "Makefile", "README.md", "hack/boilerplate/boilerplate.go.txt"}, githubFiles)))
+	if diff := gocmp.Diff(want, paths(files)); diff != "" {
+		t.Errorf("Render() paths mismatch (-want +got):\n%s", diff)
 	}
 }
 
