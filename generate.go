@@ -76,8 +76,6 @@ func syncCheckout(ctx context.Context, logger *log.Logger, dir string, pull bool
 		logger.Debug("The gitignore checkout is not a git repository; sync skipped", "dir", dir)
 	case repo.SyncSkippedNoPull:
 		logger.Debug("The gitignore checkout exists; not pulled", "dir", dir)
-	default:
-		logger.Warn("Unknown result of the gitignore checkout sync", "dir", dir, "action", int(action))
 	}
 	return nil
 }
@@ -410,9 +408,5 @@ func (g *generator) applyGitHub(ctx context.Context, origin string) {
 		g.log.Warn("GitHub settings skipped: origin points to another repository", "origin", origin, "want", want)
 	case github.SkippedNotFound:
 		g.log.Warn("GitHub settings skipped: the repository does not exist on GitHub or the token cannot see it", "repository", want)
-	case github.Failed:
-		g.log.Warn("GitHub settings not applied", "repository", want)
-	default:
-		g.log.Warn("Unknown result of the GitHub settings", "repository", want, "outcome", int(outcome))
 	}
 }
