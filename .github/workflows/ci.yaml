@@ -21,6 +21,9 @@ jobs:
     name: test/(${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -36,8 +39,30 @@ jobs:
           check-latest: true
       - run: go build ./...
       - run: go vet ./...
-      - run: go test -race -count=1 -cover ./...
+      - name: Test and take a coverage
         if: matrix.os != 'windows-2025'
+        env:
+          GOTESTSUM_FORMAT: standard-verbose
+        run: >-
+          go tool gotestsum --junitfile _test_results/tests.xml --
+          -race -count=1 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+      - name: Upload coverage to Codecov
+        if: success() && matrix.os != 'windows-2025'
+        uses: codecov/codecov-action@v7
+        with:
+          report_type: coverage
+          files: coverage.out
+          flags: ${{ runner.os }}-${{ runner.arch }}
+          use_oidc: true
+          verbose: true
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && matrix.os != 'windows-2025' }}
+        uses: codecov/codecov-action@v7
+        with:
+          report_type: test_results
+          files: _test_results/tests.xml
+          flags: ${{ runner.os }}-${{ runner.arch }}
+          use_oidc: true
 
   lint:
     runs-on: ubuntu-26.04

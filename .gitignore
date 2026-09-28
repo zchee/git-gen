@@ -18,6 +18,7 @@
 # Code coverage profiles and other test artifacts
 *.out
 coverage.*
+_test_results/
 *.coverprofile
 profile.cov
 
