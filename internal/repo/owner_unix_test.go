@@ -19,12 +19,11 @@ package repo
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
 // TestCheckDirOwner runs CheckDir with the real owner lookup: the files of a temporary directory belong to
-// the user running the test, and any other user id is refused.
+// the user running the test. TestCheckDir covers the refusal of another user id with an injected owner.
 func TestCheckDirOwner(t *testing.T) {
 	t.Parallel()
 
@@ -37,32 +36,7 @@ func TestCheckDirOwner(t *testing.T) {
 	if uid, ok := fileOwner(fi); !ok || uid != os.Getuid() {
 		t.Errorf("fileOwner() = %d, %t, want %d, true", uid, ok, os.Getuid())
 	}
-
-	tests := map[string]struct {
-		check   func() error
-		wantErr string
-	}{
-		"success: the current user owns .git": {
-			check: func() error { return CheckDir(dir) },
-		},
-		"error: another user id": {
-			check:   func() error { return checkDir(dir, os.Getuid()+1, fileOwner) },
-			wantErr: filepath.Join(dir, ".git") + " is owned by uid ",
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			err := tt.check()
-			if tt.wantErr == "" {
-				if err != nil {
-					t.Fatalf("CheckDir() error = %v", err)
-				}
-				return
-			}
-			if err == nil || !strings.HasPrefix(err.Error(), tt.wantErr) {
-				t.Fatalf("checkDir() error = %v, want one starting with %q", err, tt.wantErr)
-			}
-		})
+	if err := CheckDir(dir); err != nil {
+		t.Errorf("CheckDir() error = %v", err)
 	}
 }

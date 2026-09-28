@@ -328,7 +328,7 @@ func TestSync(t *testing.T) {
 			wantErr:    true,
 			wantStatus: " M Go.gitignore\n",
 		},
-		"error: a path the system rejects is not looked up": {
+		"error: a path the system rejects cannot be looked up": {
 			setup: func(t *testing.T, e *env) plumbing.Hash {
 				t.Helper()
 				e.dir += "\x00"

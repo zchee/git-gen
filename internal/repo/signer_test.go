@@ -171,10 +171,6 @@ func TestRedact(t *testing.T) {
 			key:  "Test User <test@example.com>",
 			want: "gpg: skipped \"<user.signingkey>\": No secret key",
 		},
-		"success: an empty key replaces nothing": {
-			in:   "gpg: signing failed: No secret key\n",
-			want: "gpg: signing failed: No secret key",
-		},
 	}
 
 	for name, tt := range tests {

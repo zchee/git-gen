@@ -54,8 +54,8 @@ func TestRealSigning(t *testing.T) {
 	if err != nil || existed {
 		t.Fatalf("Open() = %t, %v, want a new repository", existed, err)
 	}
-	hashes := make([]string, 0, len(planSteps))
-	for _, step := range planSteps {
+	hashes := make([]string, 0, len(commitSteps))
+	for _, step := range commitSteps {
 		res, err := r.Commit(t.Context(), step)
 		if err != nil {
 			t.Fatalf("Commit(%q) error = %v", step.Message, err)

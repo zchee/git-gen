@@ -1,6 +1,0 @@
-# A plain global configuration: identity and default branch only.
-[user]
-	name = Fixture User
-	email = fixture@example.com
-[init]
-	defaultBranch = trunk

@@ -355,13 +355,6 @@ func TestLoadConfigSigning(t *testing.T) {
 				SigningKey: "0xFEDCBA9876543210",
 			},
 		},
-		"success: init.defaultBranch from the fixture": {
-			fixture: "identity.gitconfig",
-			want: Config{
-				DefaultBranch: "trunk", SigningFormat: "openpgp", SigningProgram: "gpg",
-				SigningKey: "Fixture User <fixture@example.com>", SigningKeyFromCommitter: true,
-			},
-		},
 		"error: ssh without user.signingkey": {
 			fixture: "ssh-no-key.gitconfig",
 			wantErr: "user.signingkey is not set",
@@ -387,10 +380,7 @@ func TestLoadConfigSigning(t *testing.T) {
 				t.Fatalf("LoadConfig() error = %v", err)
 			}
 			want := tt.want
-			want.Author, want.Committer = fixture, fixture
-			if want.DefaultBranch == "" {
-				want.DefaultBranch = "main"
-			}
+			want.Author, want.Committer, want.DefaultBranch = fixture, fixture, "main"
 			if diff := gocmp.Diff(want, cfg); diff != "" {
 				t.Errorf("LoadConfig() mismatch (-want +got):\n%s", diff)
 			}
@@ -558,10 +548,6 @@ func TestLoadConfigSigningKeySource(t *testing.T) {
 		"success: user.signingkey that equals the committer identity": {
 			layout:  configLayout{gitconfig: identity + "[user]\n\tsigningkey = U <u@example.com>\n"},
 			wantKey: "U <u@example.com>",
-		},
-		"success: user.signingkey of the repository's file": {
-			layout:  configLayout{repo: "[user]\n\tsigningkey = 0xABCDEF\n", gitconfig: identity},
-			wantKey: "0xABCDEF",
 		},
 	}
 

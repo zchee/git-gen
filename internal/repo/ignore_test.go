@@ -169,6 +169,16 @@ func TestIgnoreMatcher(t *testing.T) {
 			},
 			wantIgnored: []string{"x/logs/a.txt"},
 		},
+		"success: a segment that starts with a bang or ends with a space": {
+			files: map[string]string{
+				".gitignore": "a/!b\nc /d\n",
+				"a/!b":       "",
+				"a/b":        "",
+				"c /d":       "",
+				"c/d":        "",
+			},
+			wantIgnored: []string{"a/!b", "c /d"},
+		},
 	}
 
 	for name, tt := range tests {
@@ -238,13 +248,11 @@ func TestParseIgnoreLine(t *testing.T) {
 		line   string
 		wantOK bool
 	}{
-		"success: a pattern":               {line: "*.log", wantOK: true},
-		"success: a blank line is none":    {line: "", wantOK: false},
-		"success: a comment is none":       {line: "# note", wantOK: false},
-		"success: a lone slash is none":    {line: "/", wantOK: false},
-		"success: a lone bang is none":     {line: "!", wantOK: false},
-		"success: a segment with a bang":   {line: "a/!b", wantOK: true},
-		"success: an inner trailing space": {line: "a /b", wantOK: true},
+		"success: a pattern":            {line: "*.log", wantOK: true},
+		"success: a blank line is none": {line: "", wantOK: false},
+		"success: a comment is none":    {line: "# note", wantOK: false},
+		"success: a lone slash is none": {line: "/", wantOK: false},
+		"success: a lone bang is none":  {line: "!", wantOK: false},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

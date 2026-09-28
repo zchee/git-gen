@@ -141,14 +141,14 @@ func readGitConfig(t *testing.T, dir string) *config.Config {
 	return cfg
 }
 
-// planSteps are the commit steps of git-gen, in order.
-var planSteps = []CommitStep{
+// commitSteps are the commits git-gen makes, in order.
+var commitSteps = []CommitStep{
 	{Message: "Initial commit", Paths: []string{".gitignore", ".gitattributes", "LICENSE", "CODE_OF_CONDUCT.md"}},
 	{Message: "github: add .github directory", Paths: []string{".github/PULL_REQUEST_TEMPLATE.md"}},
 	{Message: "go.mod: init module", Paths: []string{"go.mod", "go.sum"}, Force: true},
 }
 
-// goGitignore stands for the .gitignore of `git-gen apache2 go`; none of the paths of planSteps match it.
+// goGitignore stands for the .gitignore of `git-gen apache2 go`; none of the paths of commitSteps match it.
 const goGitignore = `# git-gen project generated files to ignore
 
 # github/gitignore/Go
@@ -207,7 +207,7 @@ type stepWant struct {
 	tree            []string // files of HEAD after the step; nil when the step makes no commit
 }
 
-// TestCommit checks the commits that planSteps make, and that running them again commits nothing.
+// TestCommit checks the commits that commitSteps make, and that running them again commits nothing.
 func TestCommit(t *testing.T) {
 	t.Parallel()
 
@@ -332,7 +332,7 @@ func TestCommit(t *testing.T) {
 			}
 
 			var wantSubjects []string
-			for i, step := range planSteps {
+			for i, step := range commitSteps {
 				res, err := r.Commit(t.Context(), step)
 				if err != nil {
 					t.Fatalf("step %d Commit() error = %v", i+1, err)
@@ -392,7 +392,7 @@ func TestCommit(t *testing.T) {
 			}
 
 			// The same steps again make no commit.
-			for i, step := range planSteps {
+			for i, step := range commitSteps {
 				res, err := r.Commit(t.Context(), step)
 				if err != nil {
 					t.Fatalf("rerun step %d Commit() error = %v", i+1, err)
@@ -406,14 +406,7 @@ func TestCommit(t *testing.T) {
 			}
 
 			gitCLI(t, dir, "fsck", "--strict")
-			var status []string
-			for line := range strings.SplitSeq(strings.TrimSpace(gitCLI(t, dir, "status", "--porcelain=v1")), "\n") {
-				if line != "" {
-					status = append(status, line)
-				}
-			}
-			slices.Sort(status)
-			if diff := gocmp.Diff(tt.wantStatus, status, cmpopts.EquateEmpty()); diff != "" {
+			if diff := gocmp.Diff(tt.wantStatus, gitStatus(t, dir), cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("git status mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -448,7 +441,7 @@ func TestCommitTrackedIgnored(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			r, dir := openTestRepo(t, generatedFiles(goGitignore))
-			if res, err := r.Commit(t.Context(), planSteps[0]); err != nil || res.Hash == "" {
+			if res, err := r.Commit(t.Context(), commitSteps[0]); err != nil || res.Hash == "" {
 				t.Fatalf("first Commit() = %+v, %v, want a commit", res, err)
 			}
 			writeFiles(t, dir, map[string]string{
@@ -466,12 +459,7 @@ func TestCommitTrackedIgnored(t *testing.T) {
 			if diff := gocmp.Diff(tt.wantSkipped, res.Skipped, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("Skipped mismatch (-want +got):\n%s", diff)
 			}
-			var status []string
-			for line := range strings.SplitSeq(strings.TrimRight(gitCLI(t, dir, "status", "--porcelain=v1"), "\n"), "\n") {
-				status = append(status, line)
-			}
-			slices.Sort(status)
-			if diff := gocmp.Diff(tt.wantStatus, status); diff != "" {
+			if diff := gocmp.Diff(tt.wantStatus, gitStatus(t, dir)); diff != "" {
 				t.Errorf("git status mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -509,16 +497,13 @@ func TestCommitContext(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		cancelEarly bool // cancel before Commit instead of while the program runs
-		wantStarted bool
+		cancelEarly bool // cancel before Commit, so the program never starts, instead of while it runs
 	}{
 		"error: a context cancelled before Commit never starts the program": {
 			cancelEarly: true,
-			wantStarted: false,
 		},
 		"error: a context cancelled while signing stops the program": {
 			cancelEarly: false,
-			wantStarted: true,
 		},
 	}
 
@@ -564,8 +549,9 @@ func TestCommitContext(t *testing.T) {
 			if res.Hash != "" {
 				t.Errorf("Commit() Hash = %q, want none", res.Hash)
 			}
-			if _, statErr := os.Stat(marker); (statErr == nil) != tt.wantStarted {
-				t.Errorf("program started = %t, want %t", statErr == nil, tt.wantStarted)
+			_, statErr := os.Stat(marker)
+			if started := statErr == nil; started == tt.cancelEarly {
+				t.Errorf("program started = %t, want %t", started, !tt.cancelEarly)
 			}
 			if got := history(t, dir); len(got) != 0 {
 				t.Errorf("history has %d commits, want 0", len(got))

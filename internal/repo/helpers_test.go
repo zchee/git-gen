@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -73,6 +74,19 @@ func writeFiles(t *testing.T, dir string, files map[string]string) {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
+}
+
+// gitStatus returns the lines of `git status --porcelain=v1` in dir, sorted; nil when the tree is clean.
+func gitStatus(t *testing.T, dir string) []string {
+	t.Helper()
+	var status []string
+	for line := range strings.SplitSeq(strings.TrimRight(gitCLI(t, dir, "status", "--porcelain=v1"), "\n"), "\n") {
+		if line != "" {
+			status = append(status, line)
+		}
+	}
+	slices.Sort(status)
+	return status
 }
 
 // gitCLI runs the git command line in dir and returns its standard output. It never reads the owner's
