@@ -52,26 +52,24 @@ func (f signerFunc) Sign(ctx context.Context, message io.Reader) ([]byte, error)
 // when the signature is empty, so that a wrong key or a refused pinentry is reported before any file is
 // written.
 //
-// Errors from signing, here and from the returned Signer, leave out the gpg status lines ("[GNUPG:] ...")
-// the program wrote to standard error and replace every occurrence of cfg.SigningKey with
-// "<user.signingkey>"; the other lines of its standard error are kept.
+// Errors from signing, here and in Repository.Commit, leave out the gpg status lines ("[GNUPG:] ...") the
+// program wrote to standard error and replace every occurrence of the signing key with "<user.signingkey>";
+// the other lines of its standard error are kept. The returned Signer does not redact on its own: only
+// Repository.Commit redacts the errors of later signatures.
 func NewSigner(ctx context.Context, cfg Config) (Signer, error) { //nolint:gocritic // hugeParam: NewSigner runs once per process and takes Config as LoadConfig returns it.
 	p, err := program.New(program.Format(cfg.SigningFormat), cfg.SigningProgram, cfg.SigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("signing program: %w", err)
 	}
-	s := signerFunc(func(ctx context.Context, message io.Reader) ([]byte, error) {
-		return sign(ctx, p, cfg.SigningKey, message)
-	})
 
-	sig, err := s.Sign(ctx, strings.NewReader(signCheckPayload))
+	sig, err := sign(ctx, p, cfg.SigningKey, strings.NewReader(signCheckPayload))
 	if err != nil {
 		return nil, fmt.Errorf("test signature: %w", err)
 	}
 	if len(bytes.TrimSpace(sig)) == 0 {
 		return nil, fmt.Errorf("test signature: %s returned an empty signature", cfg.SigningProgram)
 	}
-	return s, nil
+	return p, nil
 }
 
 // sign runs s with ctx and removes the gpg status lines and the signing key from its error.

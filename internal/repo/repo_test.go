@@ -490,6 +490,19 @@ func sleepingStub(t *testing.T, marker string) string {
 	return path
 }
 
+// signOnceStub writes a signing program that runs testdata/signer/ok.sh the first time and
+// testdata/signer/fail.sh every later time, so that NewSigner's test signature passes and a commit fails.
+func signOnceStub(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "sign-once.sh")
+	script := "#!/bin/sh\nif [ -e \"$0.signed\" ]; then exec '" + testdataPath(t, "signer", "fail.sh") + "' \"$@\"; fi\n" +
+		": > \"$0.signed\"\nexec '" + testdataPath(t, "signer", "ok.sh") + "' \"$@\"\n"
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 // TestCommitContext checks that the caller's context reaches the signing program even though go-git
 // calls Sign with context.TODO().
 func TestCommitContext(t *testing.T) {
@@ -566,6 +579,9 @@ func TestCommitErrors(t *testing.T) {
 	t.Parallel()
 
 	emptySigner := signerFunc(func(context.Context, io.Reader) ([]byte, error) { return nil, nil })
+	// The key "user" occurs in "<user.signingkey>", so a second redaction would rewrite the placeholder.
+	userKeyConfig := testConfig
+	userKeyConfig.SigningKey = "user"
 	tests := map[string]struct {
 		signer func(t *testing.T) Signer
 		cfg    Config
@@ -595,6 +611,21 @@ func TestCommitErrors(t *testing.T) {
 			step:      CommitStep{Message: "Initial commit", Paths: []string{"LICENSE"}},
 			wantErr:   `commit "Initial commit"`,
 			wantNoLog: true,
+		},
+		"error: a signer from NewSigner that fails later has its error redacted once": {
+			signer: func(t *testing.T) Signer {
+				t.Helper()
+				cfg := userKeyConfig
+				cfg.SigningProgram = signOnceStub(t)
+				s, err := NewSigner(t.Context(), cfg)
+				if err != nil {
+					t.Fatalf("NewSigner() error = %v", err)
+				}
+				return s
+			},
+			cfg:     userKeyConfig,
+			step:    CommitStep{Message: "Initial commit", Paths: []string{"LICENSE"}},
+			wantErr: `gpg: skipped "<user.signingkey>": No secret key`,
 		},
 		"error: no signer": {
 			signer:  func(*testing.T) Signer { return nil },

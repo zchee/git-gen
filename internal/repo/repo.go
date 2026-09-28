@@ -247,9 +247,9 @@ func (r *Repository) AddRemote(name, url string) (effectiveURL string, added boo
 // holds at least one added file, as `git status --porcelain | grep '^A'` would show; otherwise Hash is
 // empty and the error is nil. Files staged earlier by someone else go into the same commit.
 //
-// The message ends with one newline, as with git commit -m. The signing program runs with ctx. An empty
-// signature returns ErrUnsigned and no commit is written. The commit is also read back, and ErrUnsigned is
-// returned when its signature is empty.
+// The message ends with one newline, as with git commit -m. The signing program runs with ctx, and a
+// signing error is redacted as NewSigner describes. An empty signature returns ErrUnsigned and no commit is
+// written. The commit is also read back, and ErrUnsigned is returned when its signature is empty.
 func (r *Repository) Commit(ctx context.Context, step CommitStep) (CommitResult, error) {
 	if r.signer == nil {
 		return CommitResult{}, errors.New("commit: no signer configured")
