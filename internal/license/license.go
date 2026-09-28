@@ -105,11 +105,6 @@ func Names() []string {
 	return names
 }
 
-// ListVersion returns the version of the SPDX License List the embedded texts come from.
-func ListVersion() string {
-	return embedded.LicenseListVersion
-}
-
 // Render returns the LICENSE file content. It returns nil, nil for "none". For a license whose Holder is
 // not HolderNone, the line that holds the SPDX copyright placeholder is replaced as a whole by the filled
 // copyright line. The result ends with exactly one newline.
