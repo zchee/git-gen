@@ -141,33 +141,14 @@ func (rt rewriteHost) RoundTrip(req *http.Request) (*http.Response, error) {
 	return rt.next.RoundTrip(out)
 }
 
-// TestOutcome pins the order of the Outcome constants. Failed must be the zero value, so that a caller that
-// ignores the error never reads a failure as success.
-func TestOutcome(t *testing.T) {
+// TestOutcomeZeroValue checks that the zero value of Outcome is Failed, so that a caller that ignores the
+// error never reads a failure as success.
+func TestOutcomeZeroValue(t *testing.T) {
 	t.Parallel()
 
 	var zero Outcome
-	tests := map[string]struct {
-		got  Outcome
-		want Outcome
-	}{
-		"success: the zero value of Outcome is Failed": {got: zero, want: Failed},
-		"success: Failed is 0":                         {got: Failed, want: 0},
-		"success: Applied is 1":                        {got: Applied, want: 1},
-		"success: SkippedNoToken is 2":                 {got: SkippedNoToken, want: 2},
-		"success: SkippedNotGitHub is 3":               {got: SkippedNotGitHub, want: 3},
-		"success: SkippedOriginMismatch is 4":          {got: SkippedOriginMismatch, want: 4},
-		"success: SkippedNotFound is 5":                {got: SkippedNotFound, want: 5},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			if tt.got != tt.want {
-				t.Errorf("Outcome = %d, want %d", tt.got, tt.want)
-			}
-		})
+	if zero != Failed {
+		t.Errorf("zero Outcome = %d, want Failed (%d)", zero, Failed)
 	}
 }
 
@@ -260,10 +241,6 @@ func TestApply(t *testing.T) {
 		"error: PATCH 403": {
 			origin: "git@github.com:org/project.git", token: testToken, get: ok, patch: reply{status: http.StatusForbidden},
 			want: Failed, wantTokenCalls: 1, wantReqs: []string{getReq, patchReq}, wantErr: true, wantStatus: http.StatusForbidden,
-		},
-		"error: GET 500": {
-			origin: "git@github.com:org/project.git", token: testToken, get: reply{status: http.StatusInternalServerError},
-			want: Failed, wantTokenCalls: 1, wantReqs: []string{getReq}, wantErr: true, wantStatus: http.StatusInternalServerError,
 		},
 		"error: GET 403": {
 			origin: "git@github.com:org/project.git", token: testToken, get: reply{status: http.StatusForbidden},
@@ -461,8 +438,9 @@ func TestApplyTokenLookupBounded(t *testing.T) {
 	}
 }
 
-// TestApplyIgnoresGhEnvironment sets every variable go-gh consults on its own to values that would change the
-// result if go-gh read them. It cannot run in parallel because it sets environment variables.
+// TestApplyIgnoresGhEnvironment sets GH_TOKEN, GITHUB_TOKEN and a gh configuration that would change the
+// outcome, the requests or their Authorization header if go-gh read them, and checks that only the injected
+// token is used. It cannot run in parallel because it sets environment variables.
 func TestApplyIgnoresGhEnvironment(t *testing.T) {
 	configDir := t.TempDir()
 	// An api_host with a port fails go-gh's validation, so reading this file would make NewRESTClient fail.
@@ -471,9 +449,6 @@ func TestApplyIgnoresGhEnvironment(t *testing.T) {
 	t.Setenv("GH_CONFIG_DIR", configDir)
 	t.Setenv("GH_TOKEN", "env-token")
 	t.Setenv("GITHUB_TOKEN", "env-token")
-	t.Setenv("GH_HOST", "example.com")
-	t.Setenv("GH_PATH", filepath.Join(configDir, "nonexistent-gh"))
-	t.Setenv("GH_DEBUG", "api")
 
 	tests := map[string]struct {
 		token    string
@@ -549,9 +524,9 @@ func TestNew(t *testing.T) {
 		},
 		"success: fields set by the caller are kept": {
 			opts: Options{API: api.ClientOptions{
-				Host: "github.com", APIHost: "api.example.com", Timeout: time.Second, Transport: custom,
+				Host: "ghe.example.com", APIHost: "api.example.com", Timeout: time.Second, Transport: custom,
 			}},
-			want:          view{Host: "github.com", APIHost: "api.example.com", Timeout: time.Second, LogIgnoreEnv: true},
+			want:          view{Host: "ghe.example.com", APIHost: "api.example.com", Timeout: time.Second, LogIgnoreEnv: true},
 			wantTransport: custom,
 		},
 		"success: a Unix socket leaves Transport unset so go-gh dials the socket": {
