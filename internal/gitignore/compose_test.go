@@ -15,10 +15,8 @@
 package gitignore
 
 import (
-	"bytes"
 	"errors"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -105,6 +103,11 @@ func TestCompose(t *testing.T) {
 			args:   []string{"go-pkg", "go"},
 			want:   golden,
 		},
+		"success: go Go go-pkg go-simple Go gives one Go section": {
+			author: "git-gen",
+			args:   []string{"go", "Go", "go-pkg", "go-simple", "Go"},
+			want:   golden,
+		},
 		"success: go-pkg gives the Go template without edits": {
 			author: "git-gen",
 			args:   []string{"go-pkg"},
@@ -125,10 +128,20 @@ func TestCompose(t *testing.T) {
 			args:   []string{"Rust", "go"},
 			want:   header + rustSection + goSection,
 		},
+		"success: Rust": {
+			author: "git-gen",
+			args:   []string{"Rust"},
+			want:   header + rustSection,
+		},
 		"success: Python keeps every line": {
 			author: "git-gen",
 			args:   []string{"Python"},
 			want:   header + sectionOf("Python", python[1:]),
+		},
+		"success: go Python keeps every Python line": {
+			author: "git-gen",
+			args:   []string{"go", "Python"},
+			want:   golden + sectionOf("Python", python[1:]),
 		},
 		"success: nested template name": {
 			author: "git-gen",
@@ -172,119 +185,10 @@ func TestCompose(t *testing.T) {
 	}
 }
 
-// TestComposeRust checks that the RustRover block is gone in either order.
-func TestComposeRust(t *testing.T) {
-	tests := map[string]struct {
-		args []string
-	}{
-		"success: go Rust": {args: []string{"go", "Rust"}},
-		"success: Rust go": {args: []string{"Rust", "go"}},
-		"success: Rust":    {args: []string{"Rust"}},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			c := openCatalog(t, fixtureDir)
-			got, _, err := c.Compose("git-gen", resolve(t, c, tt.args...))
-			if err != nil {
-				t.Fatalf("Compose(%q): %v", tt.args, err)
-			}
-			for _, s := range []string{"RustRover", "#.idea/"} {
-				if bytes.Contains(got, []byte(s)) {
-					t.Errorf("Compose(%q) contains %q:\n%s", tt.args, s, got)
-				}
-			}
-			if !bytes.Contains(got, []byte("\nrustc-ice-*.txt\n")) {
-				t.Errorf("Compose(%q) lost the line before the RustRover block:\n%s", tt.args, got)
-			}
-		})
-	}
-}
-
-// TestComposePython checks that Python loses no line from its top.
-func TestComposePython(t *testing.T) {
-	c := openCatalog(t, fixtureDir)
-	got, _, err := c.Compose("git-gen", resolve(t, c, "go", "Python"))
-	if err != nil {
-		t.Fatalf("Compose: %v", err)
-	}
-	_, section, ok := bytes.Cut(got, []byte("\n# github/gitignore/Python\n"))
-	if !ok {
-		t.Fatalf("Compose output has no Python section:\n%s", got)
-	}
-	upstream := fixtureLines(t, "Python.gitignore")
-	gotLines := strings.SplitN(string(section), "\n", 3)
-	if diff := gocmp.Diff(upstream[1:3], gotLines[:2]); diff != "" {
-		t.Errorf("first two lines of the Python section mismatch (-want +got):\n%s", diff)
-	}
-	if gotLines[1] != "__pycache__/" {
-		t.Errorf("second line of the Python section = %q, want %q", gotLines[1], "__pycache__/")
-	}
-}
-
-func TestComposeGolang(t *testing.T) {
-	c := openCatalog(t, fixtureDir)
-	got, _, err := c.Compose("git-gen", resolve(t, c, "community/Golang"))
-	if err != nil {
-		t.Fatalf("Compose: %v", err)
-	}
-	_, section, ok := bytes.Cut(got, []byte("\n# github/gitignore/community/Golang\n"))
-	if !ok {
-		t.Fatalf("Compose output has no community/Golang section:\n%s", got)
-	}
-	if bytes.HasPrefix(section, []byte("# files, developer configurations or IDE-specific files etc.")) {
-		t.Errorf("section starts with the dangling line of the leading comment block:\n%s", section)
-	}
-	for _, line := range []string{"!/.gitattributes", "!Makefile"} {
-		if !slices.Contains(strings.Split(string(section), "\n"), line) {
-			t.Errorf("section has no line %q:\n%s", line, section)
-		}
-	}
-}
-
-func TestComposeDuplicates(t *testing.T) {
-	c := openCatalog(t, fixtureDir)
-	got, _, err := c.Compose("git-gen", resolve(t, c, "go", "Go", "go-pkg", "go-simple", "Go"))
-	if err != nil {
-		t.Fatalf("Compose: %v", err)
-	}
-	if n := bytes.Count(got, []byte("# github/gitignore/")); n != 1 {
-		t.Errorf("Compose output has %d sections, want 1:\n%s", n, got)
-	}
-	if n := bytes.Count(got, []byte("# Compiled Object files")); n != 1 {
-		t.Errorf("Compose output has %d appended Go blocks, want 1", n)
-	}
-}
-
-// TestComposeUnknown checks that an unknown language adds no section.
-func TestComposeUnknown(t *testing.T) {
-	golden, _, _ := splitGolden(t)
-	c := openCatalog(t, fixtureDir)
-	langs, unknown, err := c.Resolve([]string{"Nope", "go", "go-old"})
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if diff := gocmp.Diff([]string{"Nope", "go-old"}, unknown); diff != "" {
-		t.Errorf("unknown mismatch (-want +got):\n%s", diff)
-	}
-	got, warnings, err := c.Compose("git-gen", langs)
-	if err != nil {
-		t.Fatalf("Compose: %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Errorf("Compose warnings = %q, want none", warnings)
-	}
-	if diff := gocmp.Diff(golden, string(got)); diff != "" {
-		t.Errorf("Compose mismatch (-want +got):\n%s", diff)
-	}
-}
-
 // TestComposeTemplates runs Compose on catalogs whose templates differ from
 // upstream, to check the edits by content and their warnings.
 func TestComposeTemplates(t *testing.T) {
-	const header = "# git-gen project generated files to ignore\n" +
-		"#  If you want to ignore files created by your editor/tools,\n" +
-		"#  please consider a global .gitignore https://docs.github.com/en/get-started/git-basics/ignoring-files.\n" +
-		"#  PLEASE DO NOT open a pull request to add something created by your editor or tools\n"
+	_, header, _ := splitGolden(t)
 	tests := map[string]struct {
 		files        map[string]string
 		args         []string

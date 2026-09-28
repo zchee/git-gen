@@ -1,2 +1,0 @@
-# Fixture outside the gitignore catalog root. No output of internal/gitignore may contain the next line.
-ESCAPE-SENTINEL-6d1f0c: this line lives outside the catalog

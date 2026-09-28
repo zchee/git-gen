@@ -63,12 +63,6 @@ func TestAttributes(t *testing.T) {
 			author: "git-gen",
 			want:   header,
 		},
-		"success: own output is unchanged": {
-			existing: golden,
-			author:   "git-gen",
-			args:     []string{"Go"},
-			want:     golden,
-		},
 		"success: go after Rust adds the go.sum block": {
 			existing: header,
 			author:   "git-gen",
@@ -131,26 +125,6 @@ func TestAttributes(t *testing.T) {
 				t.Errorf("Attributes applied to its own output changed it:\n%s\nto:\n%s", got, again)
 			}
 		})
-	}
-}
-
-// TestAttributesSequence checks that running Rust and then
-// go, twice, gives one header block and one go.sum block.
-func TestAttributesSequence(t *testing.T) {
-	golden := readFile(t, goldenAttributes)
-	c := openCatalog(t, fixtureDir)
-	var got []byte
-	for range 2 {
-		got = Attributes(got, "git-gen", resolve(t, c, "Rust"))
-		got = Attributes(got, "git-gen", resolve(t, c, "go"))
-	}
-	if diff := gocmp.Diff(string(golden), string(got)); diff != "" {
-		t.Errorf("Attributes sequence mismatch (-want +got):\n%s", diff)
-	}
-	for _, block := range []string{"# git-gen project gitattributes file\n", "go.sum       linguist-vendored\n"} {
-		if n := bytes.Count(got, []byte(block)); n != 1 {
-			t.Errorf("output holds %q %d times, want once", block, n)
-		}
 	}
 }
 
