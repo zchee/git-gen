@@ -137,7 +137,7 @@ func TestRun(t *testing.T) {
 
 	tests := map[string]struct {
 		ids    []string
-		routes func(map[string]fixture)
+		routes map[string]fixture
 		// cancel runs the generator with a canceled context.
 		cancel bool
 		// outIsFile makes the output path an existing regular file.
@@ -149,15 +149,15 @@ func TestRun(t *testing.T) {
 		},
 		"error: placeholder occurs twice in the text": {
 			ids: []string{"BSD-3-Clause"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/details/BSD-3-Clause.json"] = detailsBody(t, "BSD-3-Clause", bsdText+bsdText, bsdTmpl)
+			routes: map[string]fixture{
+				"/" + commit + "/json/details/BSD-3-Clause.json": detailsBody(t, "BSD-3-Clause", bsdText+bsdText, bsdTmpl),
 			},
 			wantErr: "occurs 2 times",
 		},
 		"error: placeholder absent from the text": {
 			ids: []string{"MIT"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/details/MIT.json"] = detailsBody(t, "MIT", "MIT License\n", mitTmpl)
+			routes: map[string]fixture{
+				"/" + commit + "/json/details/MIT.json": detailsBody(t, "MIT", "MIT License\n", mitTmpl),
 			},
 			wantErr: "occurs 0 times",
 		},
@@ -167,43 +167,43 @@ func TestRun(t *testing.T) {
 		},
 		"error: licenses.json server error": {
 			ids: []string{"MIT"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/licenses.json"] = fixture{status: http.StatusInternalServerError, body: "boom"}
+			routes: map[string]fixture{
+				"/" + commit + "/json/licenses.json": {status: http.StatusInternalServerError, body: "boom"},
 			},
 			wantErr: "500 Internal Server Error",
 		},
 		"error: licenses.json is not JSON": {
 			ids: []string{"MIT"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/licenses.json"] = fixture{status: http.StatusOK, body: "{"}
+			routes: map[string]fixture{
+				"/" + commit + "/json/licenses.json": {status: http.StatusOK, body: "{"},
 			},
 			wantErr: "decode",
 		},
 		"error: empty licenseListVersion": {
 			ids: []string{"MIT"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/licenses.json"] = fixture{status: http.StatusOK, body: `{"licenseListVersion":""}`}
+			routes: map[string]fixture{
+				"/" + commit + "/json/licenses.json": {status: http.StatusOK, body: `{"licenseListVersion":""}`},
 			},
 			wantErr: "licenseListVersion is empty",
 		},
 		"error: details carry another licenseId": {
 			ids: []string{"MIT"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/details/MIT.json"] = detailsBody(t, "MIT-0", mitText, mitTmpl)
+			routes: map[string]fixture{
+				"/" + commit + "/json/details/MIT.json": detailsBody(t, "MIT-0", mitText, mitTmpl),
 			},
 			wantErr: `licenseId "MIT-0"`,
 		},
 		"error: empty licenseText": {
 			ids: []string{"CC-BY-SA-4.0"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/details/CC-BY-SA-4.0.json"] = detailsBody(t, "CC-BY-SA-4.0", "", ccTmpl)
+			routes: map[string]fixture{
+				"/" + commit + "/json/details/CC-BY-SA-4.0.json": detailsBody(t, "CC-BY-SA-4.0", "", ccTmpl),
 			},
 			wantErr: "licenseText is empty",
 		},
 		"error: malformed template markup": {
 			ids: []string{"MIT"},
-			routes: func(r map[string]fixture) {
-				r["/"+commit+"/json/details/MIT.json"] = detailsBody(t, "MIT", mitText, `<<var;name="copyright";original="Copyright`)
+			routes: map[string]fixture{
+				"/" + commit + "/json/details/MIT.json": detailsBody(t, "MIT", mitText, `<<var;name="copyright";original="Copyright`),
 			},
 			wantErr: "unterminated original value",
 		},
@@ -226,9 +226,7 @@ func TestRun(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			routes := baseRoutes(t)
-			if tc.routes != nil {
-				tc.routes(routes)
-			}
+			maps.Copy(routes, tc.routes)
 			srv := serve(t, routes)
 
 			out := filepath.Join(t.TempDir(), "data")
@@ -277,7 +275,7 @@ func TestRun(t *testing.T) {
 				t.Errorf("written files mismatch (-want +got):\n%s", diff)
 			}
 			for _, want := range []string{
-				"SPDX License List", "3.29.0", "v3.29.0", "CC-BY-3.0",
+				"SPDX License List", "version 3.29.0", "CC-BY-3.0",
 				"Linux Foundation and its Contributors",
 				srv.URL + "/31ba1a50e5397e00a304dbadc76531740e89ee48/json/",
 				"tag `v3.29.0`",
