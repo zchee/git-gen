@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/charmbracelet/log v1.0.0
-	github.com/cli/go-gh/v2 v2.16.1
+	github.com/cli/go-gh/v2 v2.16.2
 	github.com/go-git/gcfg/v2 v2.0.2
 	github.com/go-git/go-git/v6 v6.0.0-alpha.5
 	github.com/go-git/x/plugin/objectsigner/program v0.0.0-20260624122410-382b2905c041
