@@ -8,7 +8,7 @@ require (
 	github.com/go-git/gcfg/v2 v2.0.2
 	github.com/go-git/go-git/v6 v6.0.0-alpha.5
 	github.com/go-git/x/plugin/objectsigner/program v0.0.0-20260624122410-382b2905c041
-	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3
+	github.com/go-json-experiment/json v1.27.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/licensecheck v0.3.1
 	github.com/rogpeppe/go-internal v1.16.0
